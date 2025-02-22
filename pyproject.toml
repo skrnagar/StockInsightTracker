@@ -15,5 +15,6 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "sqlalchemy>=2.0.38",
     "streamlit>=1.42.2",
+    "ta>=0.11.0",
     "yfinance>=0.2.54",
 ]

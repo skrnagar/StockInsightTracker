@@ -174,10 +174,88 @@ if symbol:
 
         with tab2:
             # Price predictions
-            st.subheader("Price Predictions")
+            st.subheader("Trading Analysis & Predictions")
             prediction = predict_stock_price(data['historical_data'], days_to_predict)
 
             if prediction['success']:
+                metrics = prediction['metrics']
+
+                # Trading Signal Card
+                signal_color = {
+                    'BUY': '#10B981',  # Green
+                    'SELL': '#EF4444',  # Red
+                    'NEUTRAL': '#6B7280'  # Gray
+                }[metrics['signal']]
+
+                st.markdown(f"""
+                    <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
+                             box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1rem;
+                             border-left: 4px solid {signal_color};'>
+                        <h3 style='margin: 0; color: {signal_color};'>{metrics['signal']} Signal</h3>
+                        <div style='display: flex; justify-content: space-between; margin-top: 1rem;'>
+                            <div>
+                                <p style='margin: 0; color: #666;'>Current Price</p>
+                                <p style='font-size: 1.5rem; margin: 0;'>₹{metrics['current_price']:.2f}</p>
+                            </div>
+                            <div>
+                                <p style='margin: 0; color: #666;'>Stop Loss</p>
+                                <p style='font-size: 1.5rem; margin: 0;'>₹{metrics['stop_loss']:.2f}</p>
+                                <p style='color: #EF4444;'>{metrics['stop_loss_pct']:.2f}%</p>
+                            </div>
+                        </div>
+                        <div style='display: flex; justify-content: space-between; margin-top: 1rem;'>
+                            <div>
+                                <p style='margin: 0; color: #666;'>Target 1</p>
+                                <p style='font-size: 1.5rem; margin: 0;'>₹{metrics['target_1']:.2f}</p>
+                                <p style='color: #10B981;'>{metrics['target_1_pct']:.2f}%</p>
+                            </div>
+                            <div>
+                                <p style='margin: 0; color: #666;'>Target 2</p>
+                                <p style='font-size: 1.5rem; margin: 0;'>₹{metrics['target_2']:.2f}</p>
+                                <p style='color: #10B981;'>{metrics['target_2_pct']:.2f}%</p>
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                # Technical Indicators
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.markdown(f"""
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
+                            <p style='margin: 0; color: #666;'>RSI (14)</p>
+                            <p style='font-size: 1.5rem; margin: 0;'>{metrics['rsi']:.2f}</p>
+                            <p style='color: #666;'>{
+                                'Overbought' if metrics['rsi'] > 70 
+                                else 'Oversold' if metrics['rsi'] < 30 
+                                else 'Neutral'
+                            }</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                with col2:
+                    st.markdown(f"""
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
+                            <p style='margin: 0; color: #666;'>MACD</p>
+                            <p style='font-size: 1.5rem; margin: 0;'>{metrics['macd']:.4f}</p>
+                            <p style='color: {
+                                "#10B981" if metrics['macd'] > 0 else "#EF4444"
+                            };'>{
+                                'Bullish' if metrics['macd'] > 0 else 'Bearish'
+                            }</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                with col3:
+                    st.markdown(f"""
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
+                            <p style='margin: 0; color: #666;'>Trend ({metrics['prediction_days']} Days)</p>
+                            <p style='font-size: 1.5rem; margin: 0;'>{metrics['trend']}</p>
+                            <p style='color: #666;'>CI: ₹{metrics['confidence_interval']:.2f}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                # Prediction Chart
                 pred_fig = go.Figure()
 
                 # Historical prices
@@ -208,7 +286,7 @@ if symbol:
                 ))
 
                 pred_fig.update_layout(
-                    title=f"{days_to_predict}-Day Price Prediction",
+                    title=f"{metrics['prediction_days']}-Day Price Prediction",
                     xaxis_title="Date",
                     yaxis_title="Price (INR)",
                     template="plotly_white",
@@ -217,14 +295,21 @@ if symbol:
 
                 st.plotly_chart(pred_fig, use_container_width=True)
 
-                # Prediction metrics
-                st.markdown(f"""
-                    <div class='prediction-card'>
-                        <h4>Prediction Insights</h4>
-                        <p>Trend: {prediction['metrics']['trend']}</p>
-                        <p>Average Confidence Interval: ₹{prediction['metrics']['confidence_interval']:.2f}</p>
+                # Trading Recommendations
+                st.markdown("""
+                    <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
+                             box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 1rem;'>
+                        <h4>Trading Guidelines</h4>
+                        <ul style='margin: 0; padding-left: 1.2rem;'>
+                            <li>Set stop-loss orders at the indicated level to manage risk</li>
+                            <li>Consider taking partial profits at Target 1</li>
+                            <li>Move stop-loss to break-even after Target 1 is reached</li>
+                            <li>Hold remaining position for Target 2</li>
+                            <li>Monitor RSI and MACD for potential trend reversals</li>
+                        </ul>
                     </div>
                 """, unsafe_allow_html=True)
+
             else:
                 st.error("Failed to generate predictions. Please try again later.")
 

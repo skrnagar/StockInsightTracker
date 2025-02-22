@@ -7,6 +7,22 @@ from datetime import datetime, timedelta
 import openai
 import os
 import httpx
+import ta  # Technical Analysis library
+
+def calculate_trading_signals(historical_data):
+    """Calculate technical indicators and trading signals"""
+    df = historical_data.copy()
+
+    # Calculate technical indicators
+    df['SMA_20'] = ta.trend.sma_indicator(df['Close'], window=20)
+    df['SMA_50'] = ta.trend.sma_indicator(df['Close'], window=50)
+    df['RSI'] = ta.momentum.rsi(df['Close'], window=14)
+    df['MACD'] = ta.trend.macd_diff(df['Close'])
+
+    # Calculate volatility for stop loss
+    df['ATR'] = ta.volatility.average_true_range(df['High'], df['Low'], df['Close'])
+
+    return df
 
 def prepare_data_for_prediction(historical_data):
     """Prepare data for ML prediction"""
@@ -17,9 +33,13 @@ def prepare_data_for_prediction(historical_data):
     return df
 
 def predict_stock_price(historical_data, days_to_predict=30):
-    """Use Prophet to predict future stock prices"""
+    """Use Prophet and technical analysis to predict future stock prices and trading signals"""
     try:
-        # Prepare data
+        # Calculate technical indicators
+        tech_df = calculate_trading_signals(historical_data)
+        current_price = tech_df['Close'].iloc[-1]
+
+        # Prepare data for Prophet
         df = prepare_data_for_prediction(historical_data)
 
         # Create and fit Prophet model with more conservative parameters
@@ -44,7 +64,7 @@ def predict_stock_price(historical_data, days_to_predict=30):
         # Make predictions
         forecast = model.predict(future_dates)
 
-        # Calculate confidence intervals
+        # Calculate forecast data
         forecast_data = pd.DataFrame({
             'Date': forecast['ds'].tail(days_to_predict),
             'Predicted_Price': forecast['yhat'].tail(days_to_predict),
@@ -52,22 +72,70 @@ def predict_stock_price(historical_data, days_to_predict=30):
             'Upper_Bound': forecast['yhat_upper'].tail(days_to_predict)
         })
 
-        # Calculate additional metrics
+        # Generate trading signals
+        current_rsi = tech_df['RSI'].iloc[-1]
+        current_macd = tech_df['MACD'].iloc[-1]
+        sma20_trend = tech_df['SMA_20'].iloc[-1] > tech_df['SMA_20'].iloc[-2]
+        sma50_trend = tech_df['SMA_50'].iloc[-1] > tech_df['SMA_50'].iloc[-2]
+
+        # Calculate price targets and stop loss
+        atr = tech_df['ATR'].iloc[-1]
+        volatility_factor = 2.0  # Adjust risk factor
+
+        # Trading decision logic
+        is_bullish = (current_rsi < 70 and current_macd > 0 and 
+                     sma20_trend and sma50_trend)
+        is_bearish = (current_rsi > 30 and current_macd < 0 and 
+                     not sma20_trend and not sma50_trend)
+
+        if is_bullish:
+            signal = 'BUY'
+            stop_loss = current_price - (atr * volatility_factor)
+            target_1 = current_price + (atr * volatility_factor * 1.5)  # 1.5:1 reward:risk
+            target_2 = current_price + (atr * volatility_factor * 2.5)  # 2.5:1 reward:risk
+            stop_loss_pct = ((stop_loss - current_price) / current_price) * 100
+            target_1_pct = ((target_1 - current_price) / current_price) * 100
+            target_2_pct = ((target_2 - current_price) / current_price) * 100
+        elif is_bearish:
+            signal = 'SELL'
+            stop_loss = current_price + (atr * volatility_factor)
+            target_1 = current_price - (atr * volatility_factor * 1.5)
+            target_2 = current_price - (atr * volatility_factor * 2.5)
+            stop_loss_pct = ((stop_loss - current_price) / current_price) * 100
+            target_1_pct = ((target_1 - current_price) / current_price) * 100
+            target_2_pct = ((target_2 - current_price) / current_price) * 100
+        else:
+            signal = 'NEUTRAL'
+            stop_loss = target_1 = target_2 = current_price
+            stop_loss_pct = target_1_pct = target_2_pct = 0.0
+
+        # Calculate trend metrics
         recent_trend = (
             forecast['trend'].tail(days_to_predict).mean() -
             forecast['trend'].tail(days_to_predict * 2).head(days_to_predict).mean()
         )
 
-        metrics = {
+        # Prepare trading metrics
+        trading_metrics = {
+            'signal': signal,
+            'current_price': current_price,
+            'stop_loss': round(stop_loss, 2),
+            'stop_loss_pct': round(stop_loss_pct, 2),
+            'target_1': round(target_1, 2),
+            'target_1_pct': round(target_1_pct, 2),
+            'target_2': round(target_2, 2),
+            'target_2_pct': round(target_2_pct, 2),
+            'rsi': round(current_rsi, 2),
+            'macd': round(current_macd, 4),
             'trend': 'Upward' if recent_trend > 0 else 'Downward',
-            'confidence_interval': (forecast['yhat_upper'] - forecast['yhat_lower']).mean(),
-            'trend_strength': abs(recent_trend)
+            'confidence_interval': round((forecast['yhat_upper'] - forecast['yhat_lower']).mean(), 2),
+            'prediction_days': days_to_predict
         }
 
         return {
             'success': True,
             'forecast_data': forecast_data,
-            'metrics': metrics
+            'metrics': trading_metrics
         }
     except Exception as e:
         print(f"Prediction error: {str(e)}")
