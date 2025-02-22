@@ -1,10 +1,11 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
+from database import cache_stock_data, get_cached_stock_data, update_user_preference
 
 def get_stock_data(symbol):
     """
-    Fetch stock data from Yahoo Finance
+    Fetch stock data from Yahoo Finance and cache it in database
     """
     try:
         # Append .NS for NSE stocks if not already present
@@ -15,6 +16,13 @@ def get_stock_data(symbol):
 
         # Get historical data for the past year
         hist = stock.history(period="1y")
+
+        # Cache the data in database
+        try:
+            cache_stock_data(symbol, hist)
+            update_user_preference(symbol)
+        except Exception as e:
+            print(f"Warning: Failed to cache data: {str(e)}")
 
         # Get company info
         info = stock.info
@@ -38,6 +46,39 @@ def get_stock_data(symbol):
             'company_name': info.get('longName', symbol.replace('.NS', ''))
         }
     except Exception as e:
+        # Try to get cached data if live fetch fails
+        try:
+            cached_data = get_cached_stock_data(symbol)
+            if cached_data:
+                hist_data = pd.DataFrame([{
+                    'Open': d.open_price,
+                    'High': d.high_price,
+                    'Low': d.low_price,
+                    'Close': d.close_price,
+                    'Volume': d.volume
+                } for d in cached_data], index=[d.date for d in cached_data])
+
+                metrics = {
+                    'Current Price': hist_data['Close'].iloc[-1],
+                    'Previous Close': hist_data['Close'].iloc[-2],
+                    'Market Cap': 0,  # Not available in cached data
+                    'PE Ratio': 0,    # Not available in cached data
+                    'Dividend Yield': 0,
+                    '52 Week High': hist_data['High'].max(),
+                    '52 Week Low': hist_data['Low'].min(),
+                    'Volume': hist_data['Volume'].iloc[-1]
+                }
+
+                return {
+                    'success': True,
+                    'historical_data': hist_data,
+                    'metrics': metrics,
+                    'company_name': symbol.replace('.NS', ''),
+                    'cached': True
+                }
+        except Exception as cache_error:
+            print(f"Cache retrieval failed: {str(cache_error)}")
+
         return {
             'success': False,
             'error': str(e)

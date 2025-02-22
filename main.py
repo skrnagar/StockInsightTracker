@@ -24,6 +24,13 @@ st.markdown("""
         font-size: 14px;
         color: #666;
     }
+    .cached-data-notice {
+        padding: 8px;
+        background-color: #f0f2f6;
+        border-radius: 4px;
+        font-size: 14px;
+        color: #666;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -51,6 +58,14 @@ if symbol and search_button:
     if data['success']:
         # Display company name
         st.subheader(data['company_name'])
+
+        # Show cached data notice if applicable
+        if data.get('cached'):
+            st.markdown("""
+                <div class='cached-data-notice'>
+                    ℹ️ Showing cached data due to temporary connection issues with live data source
+                </div>
+            """, unsafe_allow_html=True)
 
         # Create metrics display
         metrics = data['metrics']
