@@ -5,6 +5,9 @@ from ai_utils import predict_stock_price, analyze_sentiment, fetch_stock_news
 import pandas as pd
 import asyncio
 from datetime import datetime
+from ta import add_all_ta_features # Added import for technical analysis library
+import talib as ta # Added import for another technical analysis library
+
 
 # Page configuration
 st.set_page_config(
@@ -147,7 +150,7 @@ if symbol:
             """, unsafe_allow_html=True)
 
         # Create tabs for different views
-        tab1, tab2, tab3 = st.tabs(["📈 Price Chart", "🔮 Predictions", "📰 News & Sentiment"])
+        tab1, tab2, tab3, tab4 = st.tabs(["📈 Price Chart", "📊 Technical Analysis", "🔮 Predictions", "📰 News & Sentiment"])
 
         with tab1:
             # Price chart
@@ -173,6 +176,205 @@ if symbol:
             st.plotly_chart(fig, use_container_width=True)
 
         with tab2:
+            st.subheader("Technical Analysis")
+
+            #Calculate technical indicators
+            def calculate_technical_indicators(df):
+                df['SMA_20'] = ta.SMA(df['Close'], timeperiod=20)
+                df['SMA_50'] = ta.SMA(df['Close'], timeperiod=50)
+                df['RSI'] = ta.RSI(df['Close'], timeperiod=14)
+                df['MACD'], df['MACD_Signal'], df['MACD_Hist'] = ta.MACD(df['Close'], fastperiod=12, slowperiod=26, signalperiod=9)
+                df['ADX'] = ta.ADX(df['High'], df['Low'], df['Close'], timeperiod=14)
+                df['BB_Upper'], df['BB_Middle'], df['BB_Lower'] = ta.BBANDS(df['Close'], timeperiod=20)
+                df['Stoch_K'], df['Stoch_D'] = ta.STOCH(df['High'], df['Low'], df['Close'], fastk_period=14, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
+
+
+                return df
+
+            def get_indicator_signals(df):
+              signals = {}
+              signals['RSI'] = {'value': df['RSI'].iloc[-1], 'signal': 'Neutral'}
+              if df['RSI'].iloc[-1] > 70: signals['RSI']['signal'] = 'Overbought'
+              if df['RSI'].iloc[-1] < 30: signals['RSI']['signal'] = 'Oversold'
+
+              signals['MACD'] = {'value': df['MACD'].iloc[-1], 'signal': 'Neutral'}
+              if df['MACD'].iloc[-1] > 0: signals['MACD']['signal'] = 'Bullish'
+              if df['MACD'].iloc[-1] < 0: signals['MACD']['signal'] = 'Bearish'
+
+              signals['ADX'] = {'value': df['ADX'].iloc[-1], 'signal': 'Neutral'}
+              if df['ADX'].iloc[-1] > 25: signals['ADX']['signal'] = 'Strong Trend'
+
+              return signals
+
+
+
+            tech_data = calculate_technical_indicators(data['historical_data'])
+            signals = get_indicator_signals(tech_data)
+
+
+            # Technical Overview Card
+            st.markdown("""
+                <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
+                         box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+                    <h4>Technical Overview</h4>
+                    <p>Analysis based on multiple technical indicators</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # Display indicator signals in a grid
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown(f"""
+                    <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 1rem;'>
+                        <p style='margin: 0; color: #666;'>RSI (14)</p>
+                        <p style='font-size: 1.5rem; margin: 0;'>{signals['RSI']['value']:.2f}</p>
+                        <p style='color: {
+                            "#EF4444" if signals['RSI']['signal'] == 'Overbought'
+                            else "#10B981" if signals['RSI']['signal'] == 'Oversold'
+                            else "#6B7280"
+                        };'>{signals['RSI']['signal']}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+                st.markdown(f"""
+                    <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 1rem;'>
+                        <p style='margin: 0; color: #666;'>MACD</p>
+                        <p style='font-size: 1.5rem; margin: 0;'>{signals['MACD']['value']:.4f}</p>
+                        <p style='color: {
+                            "#10B981" if signals['MACD']['signal'] == 'Bullish'
+                            else "#EF4444" if signals['MACD']['signal'] == 'Bearish'
+                            else "#6B7280"
+                        };'>{signals['MACD']['signal']}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            with col3:
+                st.markdown(f"""
+                    <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 1rem;'>
+                        <p style='margin: 0; color: #666;'>Trend Strength (ADX)</p>
+                        <p style='font-size: 1.5rem; margin: 0;'>{signals['ADX']['value']:.2f}</p>
+                        <p style='color: {
+                            "#10B981" if signals['ADX']['signal'] == 'Strong Trend'
+                            else "#6B7280"
+                        };'>{signals['ADX']['signal']}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            # Technical Charts
+            selected_indicator = st.selectbox(
+                "Select Technical Indicator",
+                ["Bollinger Bands", "MACD", "RSI", "Stochastic", "Moving Averages"]
+            )
+
+            if selected_indicator == "Bollinger Bands":
+                fig = go.Figure()
+
+                # Price and Bollinger Bands
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['Close'],
+                    name='Price', line=dict(color='#1f77b4')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['BB_Upper'],
+                    name='Upper Band', line=dict(color='gray', dash='dash')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['BB_Lower'],
+                    name='Lower Band', line=dict(color='gray', dash='dash'),
+                    fill='tonexty'
+                ))
+
+            elif selected_indicator == "MACD":
+                fig = go.Figure()
+
+                # MACD Line and Signal
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['MACD_Line'],
+                    name='MACD Line', line=dict(color='#1f77b4')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['MACD_Signal'],
+                    name='Signal Line', line=dict(color='#ff7f0e')
+                ))
+
+                # MACD Histogram
+                colors = ['#10B981' if val >= 0 else '#EF4444' for val in tech_data['MACD']]
+                fig.add_trace(go.Bar(
+                    x=tech_data.index, y=tech_data['MACD'],
+                    name='MACD Histogram', marker_color=colors
+                ))
+
+            elif selected_indicator == "RSI":
+                fig = go.Figure()
+
+                # RSI Line
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['RSI'],
+                    name='RSI', line=dict(color='#1f77b4')
+                ))
+
+                # Overbought/Oversold Lines
+                fig.add_hline(y=70, line_dash="dash", line_color="red", annotation_text="Overbought")
+                fig.add_hline(y=30, line_dash="dash", line_color="green", annotation_text="Oversold")
+
+            elif selected_indicator == "Stochastic":
+                fig = go.Figure()
+
+                # Stochastic K and D lines
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['Stoch_K'],
+                    name='%K', line=dict(color='#1f77b4')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['Stoch_D'],
+                    name='%D', line=dict(color='#ff7f0e')
+                ))
+
+                # Overbought/Oversold Lines
+                fig.add_hline(y=80, line_dash="dash", line_color="red")
+                fig.add_hline(y=20, line_dash="dash", line_color="green")
+
+            else:  # Moving Averages
+                fig = go.Figure()
+
+                # Price and Moving Averages
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['Close'],
+                    name='Price', line=dict(color='#1f77b4')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['SMA_20'],
+                    name='SMA 20', line=dict(color='#ff7f0e')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=tech_data.index, y=tech_data['SMA_50'],
+                    name='SMA 50', line=dict(color='#2ca02c')
+                ))
+
+            # Update layout for all charts
+            fig.update_layout(
+                title=f"{selected_indicator} Analysis",
+                xaxis_title="Date",
+                yaxis_title="Value",
+                template="plotly_white",
+                height=500
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Indicator Interpretation
+            st.markdown(f"""
+                <div style='background-color: white; padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
+                    <h4>Indicator Interpretation</h4>
+                    <p>Current Signal: <strong>{signals[selected_indicator.replace(' ', '_')]['signal']}</strong></p>
+                </div>
+            """, unsafe_allow_html=True)
+
+
+
+        with tab3:
             # Price predictions
             st.subheader("Trading Analysis & Predictions")
             prediction = predict_stock_price(data['historical_data'], days_to_predict)
@@ -226,8 +428,8 @@ if symbol:
                             <p style='margin: 0; color: #666;'>RSI (14)</p>
                             <p style='font-size: 1.5rem; margin: 0;'>{metrics['rsi']:.2f}</p>
                             <p style='color: #666;'>{
-                                'Overbought' if metrics['rsi'] > 70 
-                                else 'Oversold' if metrics['rsi'] < 30 
+                                'Overbought' if metrics['rsi'] > 70
+                                else 'Oversold' if metrics['rsi'] < 30
                                 else 'Neutral'
                             }</p>
                         </div>
@@ -313,7 +515,7 @@ if symbol:
             else:
                 st.error("Failed to generate predictions. Please try again later.")
 
-        with tab3:
+        with tab4:
             # News and sentiment
             news_col1, news_col2 = st.columns([2, 1])
 

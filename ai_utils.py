@@ -9,20 +9,97 @@ import os
 import httpx
 import ta  # Technical Analysis library
 
-def calculate_trading_signals(historical_data):
-    """Calculate technical indicators and trading signals"""
+def calculate_technical_indicators(historical_data):
+    """Calculate comprehensive technical indicators"""
     df = historical_data.copy()
 
-    # Calculate technical indicators
+    # Trend Indicators
     df['SMA_20'] = ta.trend.sma_indicator(df['Close'], window=20)
     df['SMA_50'] = ta.trend.sma_indicator(df['Close'], window=50)
-    df['RSI'] = ta.momentum.rsi(df['Close'], window=14)
-    df['MACD'] = ta.trend.macd_diff(df['Close'])
+    df['EMA_12'] = ta.trend.ema_indicator(df['Close'], window=12)
+    df['EMA_26'] = ta.trend.ema_indicator(df['Close'], window=26)
 
-    # Calculate volatility for stop loss
+    # MACD
+    df['MACD'] = ta.trend.macd_diff(df['Close'])
+    df['MACD_Line'] = ta.trend.macd(df['Close'])
+    df['MACD_Signal'] = ta.trend.macd_signal(df['Close'])
+
+    # RSI
+    df['RSI'] = ta.momentum.rsi(df['Close'], window=14)
+
+    # Bollinger Bands
+    df['BB_Upper'] = ta.volatility.bollinger_hband(df['Close'])
+    df['BB_Middle'] = ta.volatility.bollinger_mavg(df['Close'])
+    df['BB_Lower'] = ta.volatility.bollinger_lband(df['Close'])
+
+    # Stochastic Oscillator
+    df['Stoch_K'] = ta.momentum.stoch(df['High'], df['Low'], df['Close'])
+    df['Stoch_D'] = ta.momentum.stoch_signal(df['High'], df['Low'], df['Close'])
+
+    # Volume-based indicators
+    df['OBV'] = ta.volume.on_balance_volume(df['Close'], df['Volume'])
+    df['VWAP'] = (df['Close'] * df['Volume']).cumsum() / df['Volume'].cumsum()
+
+    # ATR for volatility
     df['ATR'] = ta.volatility.average_true_range(df['High'], df['Low'], df['Close'])
 
+    # Additional trend indicators
+    df['ADX'] = ta.trend.adx(df['High'], df['Low'], df['Close'])
+    df['CCI'] = ta.trend.cci(df['High'], df['Low'], df['Close'])
+
     return df
+
+def get_indicator_signals(df):
+    """Generate trading signals based on technical indicators"""
+    current = df.iloc[-1]
+    prev = df.iloc[-2]
+
+    signals = {
+        'RSI': {
+            'value': round(current['RSI'], 2),
+            'signal': 'Oversold' if current['RSI'] < 30 else 'Overbought' if current['RSI'] > 70 else 'Neutral',
+            'interpretation': 'Indicates momentum and potential reversal points'
+        },
+        'MACD': {
+            'value': round(current['MACD'], 4),
+            'signal': 'Bullish' if current['MACD'] > 0 and current['MACD'] > prev['MACD'] 
+                     else 'Bearish' if current['MACD'] < 0 and current['MACD'] < prev['MACD']
+                     else 'Neutral',
+            'interpretation': 'Shows trend direction and momentum'
+        },
+        'Bollinger': {
+            'upper': round(current['BB_Upper'], 2),
+            'middle': round(current['BB_Middle'], 2),
+            'lower': round(current['BB_Lower'], 2),
+            'signal': 'Oversold' if current['Close'] < current['BB_Lower'] 
+                     else 'Overbought' if current['Close'] > current['BB_Upper']
+                     else 'Neutral',
+            'interpretation': 'Measures volatility and potential price levels'
+        },
+        'Stochastic': {
+            'K': round(current['Stoch_K'], 2),
+            'D': round(current['Stoch_D'], 2),
+            'signal': 'Oversold' if current['Stoch_K'] < 20 
+                     else 'Overbought' if current['Stoch_K'] > 80
+                     else 'Neutral',
+            'interpretation': 'Momentum indicator comparing closing price to price range'
+        },
+        'Moving_Averages': {
+            'SMA20': round(current['SMA_20'], 2),
+            'SMA50': round(current['SMA_50'], 2),
+            'signal': 'Bullish' if current['SMA_20'] > current['SMA_50'] 
+                     else 'Bearish' if current['SMA_20'] < current['SMA_50']
+                     else 'Neutral',
+            'interpretation': 'Trend direction and potential support/resistance levels'
+        },
+        'ADX': {
+            'value': round(current['ADX'], 2),
+            'signal': 'Strong Trend' if current['ADX'] > 25 else 'Weak Trend',
+            'interpretation': 'Measures trend strength regardless of direction'
+        }
+    }
+
+    return signals
 
 def prepare_data_for_prediction(historical_data):
     """Prepare data for ML prediction"""
@@ -36,7 +113,8 @@ def predict_stock_price(historical_data, days_to_predict=30):
     """Use Prophet and technical analysis to predict future stock prices and trading signals"""
     try:
         # Calculate technical indicators
-        tech_df = calculate_trading_signals(historical_data)
+        tech_df = calculate_technical_indicators(historical_data)
+        indicator_signals = get_indicator_signals(tech_df)
         current_price = tech_df['Close'].iloc[-1]
 
         # Prepare data for Prophet
@@ -72,50 +150,43 @@ def predict_stock_price(historical_data, days_to_predict=30):
             'Upper_Bound': forecast['yhat_upper'].tail(days_to_predict)
         })
 
-        # Generate trading signals
-        current_rsi = tech_df['RSI'].iloc[-1]
-        current_macd = tech_df['MACD'].iloc[-1]
-        sma20_trend = tech_df['SMA_20'].iloc[-1] > tech_df['SMA_20'].iloc[-2]
-        sma50_trend = tech_df['SMA_50'].iloc[-1] > tech_df['SMA_50'].iloc[-2]
+        # Generate trading signals (using new indicator signals)
+        signal = 'NEUTRAL'
+        stop_loss = current_price
+        target_1 = current_price
+        target_2 = current_price
+        stop_loss_pct = 0.0
+        target_1_pct = 0.0
+        target_2_pct = 0.0
+        trend = 'Neutral'
 
-        # Calculate price targets and stop loss
-        atr = tech_df['ATR'].iloc[-1]
-        volatility_factor = 2.0  # Adjust risk factor
-
-        # Trading decision logic
-        is_bullish = (current_rsi < 70 and current_macd > 0 and 
-                     sma20_trend and sma50_trend)
-        is_bearish = (current_rsi > 30 and current_macd < 0 and 
-                     not sma20_trend and not sma50_trend)
-
-        if is_bullish:
+        #Simplified logic -  replace with more sophisticated strategy based on indicator_signals
+        if indicator_signals['RSI']['signal'] == 'Oversold' and indicator_signals['MACD']['signal'] == 'Bullish':
             signal = 'BUY'
-            stop_loss = current_price - (atr * volatility_factor)
-            target_1 = current_price + (atr * volatility_factor * 1.5)  # 1.5:1 reward:risk
-            target_2 = current_price + (atr * volatility_factor * 2.5)  # 2.5:1 reward:risk
-            stop_loss_pct = ((stop_loss - current_price) / current_price) * 100
-            target_1_pct = ((target_1 - current_price) / current_price) * 100
-            target_2_pct = ((target_2 - current_price) / current_price) * 100
-        elif is_bearish:
+        elif indicator_signals['RSI']['signal'] == 'Overbought' and indicator_signals['MACD']['signal'] == 'Bearish':
             signal = 'SELL'
-            stop_loss = current_price + (atr * volatility_factor)
-            target_1 = current_price - (atr * volatility_factor * 1.5)
-            target_2 = current_price - (atr * volatility_factor * 2.5)
-            stop_loss_pct = ((stop_loss - current_price) / current_price) * 100
-            target_1_pct = ((target_1 - current_price) / current_price) * 100
-            target_2_pct = ((target_2 - current_price) / current_price) * 100
-        else:
-            signal = 'NEUTRAL'
-            stop_loss = target_1 = target_2 = current_price
-            stop_loss_pct = target_1_pct = target_2_pct = 0.0
 
-        # Calculate trend metrics
+        #Placeholder - needs improvement
+        atr = tech_df['ATR'].iloc[-1]
+        if signal == 'BUY':
+            stop_loss = current_price - (atr * 2)
+            target_1 = current_price + (atr * 3)
+            target_2 = current_price + (atr * 5)
+        elif signal == 'SELL':
+            stop_loss = current_price + (atr * 2)
+            target_1 = current_price - (atr * 3)
+            target_2 = current_price - (atr * 5)
+        
+        stop_loss_pct = ((stop_loss - current_price) / current_price) * 100
+        target_1_pct = ((target_1 - current_price) / current_price) * 100
+        target_2_pct = ((target_2 - current_price) / current_price) * 100
+
         recent_trend = (
             forecast['trend'].tail(days_to_predict).mean() -
             forecast['trend'].tail(days_to_predict * 2).head(days_to_predict).mean()
         )
+        trend = 'Upward' if recent_trend > 0 else 'Downward'
 
-        # Prepare trading metrics
         trading_metrics = {
             'signal': signal,
             'current_price': current_price,
@@ -125,12 +196,12 @@ def predict_stock_price(historical_data, days_to_predict=30):
             'target_1_pct': round(target_1_pct, 2),
             'target_2': round(target_2, 2),
             'target_2_pct': round(target_2_pct, 2),
-            'rsi': round(current_rsi, 2),
-            'macd': round(current_macd, 4),
-            'trend': 'Upward' if recent_trend > 0 else 'Downward',
+            'indicators': indicator_signals,
+            'trend': trend,
             'confidence_interval': round((forecast['yhat_upper'] - forecast['yhat_lower']).mean(), 2),
             'prediction_days': days_to_predict
         }
+
 
         return {
             'success': True,
