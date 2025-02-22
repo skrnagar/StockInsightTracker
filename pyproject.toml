@@ -5,6 +5,8 @@ description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
     "alpha-vantage>=3.0.0",
+    "httpx>=0.28.1",
+    "numpy>=2.2.3",
     "openai>=1.63.2",
     "pandas>=2.2.3",
     "plotly>=6.0.0",

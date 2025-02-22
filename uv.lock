@@ -1441,6 +1441,8 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "alpha-vantage" },
+    { name = "httpx" },
+    { name = "numpy" },
     { name = "openai" },
     { name = "pandas" },
     { name = "plotly" },
@@ -1455,6 +1457,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "alpha-vantage", specifier = ">=3.0.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "numpy", specifier = ">=2.2.3" },
     { name = "openai", specifier = ">=1.63.2" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "plotly", specifier = ">=6.0.0" },
