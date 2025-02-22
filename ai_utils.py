@@ -26,108 +26,81 @@ def calculate_technical_indicators(historical_data):
 
     # RSI
     df['RSI'] = ta.momentum.rsi(df['Close'], window=14)
+    df['ATR'] = ta.volatility.average_true_range(df['High'], df['Low'], df['Close'])
 
     # Bollinger Bands
     df['BB_Upper'] = ta.volatility.bollinger_hband(df['Close'])
     df['BB_Middle'] = ta.volatility.bollinger_mavg(df['Close'])
     df['BB_Lower'] = ta.volatility.bollinger_lband(df['Close'])
 
-    # Stochastic Oscillator
-    df['Stoch_K'] = ta.momentum.stoch(df['High'], df['Low'], df['Close'])
-    df['Stoch_D'] = ta.momentum.stoch_signal(df['High'], df['Low'], df['Close'])
-
-    # Volume-based indicators
-    df['OBV'] = ta.volume.on_balance_volume(df['Close'], df['Volume'])
-    df['VWAP'] = (df['Close'] * df['Volume']).cumsum() / df['Volume'].cumsum()
-
-    # ATR for volatility
-    df['ATR'] = ta.volatility.average_true_range(df['High'], df['Low'], df['Close'])
-
-    # Additional trend indicators
-    df['ADX'] = ta.trend.adx(df['High'], df['Low'], df['Close'])
-    df['CCI'] = ta.trend.cci(df['High'], df['Low'], df['Close'])
+    # Intraday specific indicators
+    df['ROC'] = ta.momentum.roc(df['Close'], window=9)  # Rate of Change
+    df['Williams_R'] = ta.momentum.williams_r(df['High'], df['Low'], df['Close'], lbp=14)
+    df['MFI'] = ta.volume.money_flow_index(df['High'], df['Low'], df['Close'], df['Volume'], window=14)
 
     return df
 
-def get_indicator_signals(df):
-    """Generate trading signals based on technical indicators"""
-    current = df.iloc[-1]
-    prev = df.iloc[-2]
+def prepare_intraday_prediction_data(df):
+    """Prepare data for intraday prediction"""
+    features = ['Open', 'High', 'Low', 'Close', 'Volume', 
+               'RSI', 'MACD', 'ROC', 'Williams_R', 'MFI']
 
-    signals = {
-        'RSI': {
-            'value': round(current['RSI'], 2),
-            'signal': 'Oversold' if current['RSI'] < 30 else 'Overbought' if current['RSI'] > 70 else 'Neutral',
-            'interpretation': 'Indicates momentum and potential reversal points'
-        },
-        'MACD': {
-            'value': round(current['MACD'], 4),
-            'signal': 'Bullish' if current['MACD'] > 0 and current['MACD'] > prev['MACD'] 
-                     else 'Bearish' if current['MACD'] < 0 and current['MACD'] < prev['MACD']
-                     else 'Neutral',
-            'interpretation': 'Shows trend direction and momentum'
-        },
-        'Bollinger': {
-            'upper': round(current['BB_Upper'], 2),
-            'middle': round(current['BB_Middle'], 2),
-            'lower': round(current['BB_Lower'], 2),
-            'signal': 'Oversold' if current['Close'] < current['BB_Lower'] 
-                     else 'Overbought' if current['Close'] > current['BB_Upper']
-                     else 'Neutral',
-            'interpretation': 'Measures volatility and potential price levels'
-        },
-        'Stochastic': {
-            'K': round(current['Stoch_K'], 2),
-            'D': round(current['Stoch_D'], 2),
-            'signal': 'Oversold' if current['Stoch_K'] < 20 
-                     else 'Overbought' if current['Stoch_K'] > 80
-                     else 'Neutral',
-            'interpretation': 'Momentum indicator comparing closing price to price range'
-        },
-        'Moving_Averages': {
-            'SMA20': round(current['SMA_20'], 2),
-            'SMA50': round(current['SMA_50'], 2),
-            'signal': 'Bullish' if current['SMA_20'] > current['SMA_50'] 
-                     else 'Bearish' if current['SMA_20'] < current['SMA_50']
-                     else 'Neutral',
-            'interpretation': 'Trend direction and potential support/resistance levels'
-        },
-        'ADX': {
-            'value': round(current['ADX'], 2),
-            'signal': 'Strong Trend' if current['ADX'] > 25 else 'Weak Trend',
-            'interpretation': 'Measures trend strength regardless of direction'
-        }
+    X = df[features].values
+    y = df['Close'].values
+
+    # Scale the features
+    scaler = MinMaxScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    return X_scaled, y, scaler
+
+def generate_intraday_levels(current_price, atr, rsi, trend):
+    """Generate intraday support/resistance levels"""
+    volatility_factor = 1.5 if rsi > 70 or rsi < 30 else 1.0
+
+    levels = {
+        'support_1': current_price - (atr * volatility_factor),
+        'support_2': current_price - (atr * volatility_factor * 1.5),
+        'resistance_1': current_price + (atr * volatility_factor),
+        'resistance_2': current_price + (atr * volatility_factor * 1.5)
     }
 
-    return signals
+    # Adjust levels based on trend
+    if trend == 'Upward':
+        levels = {k: v * 1.02 for k, v in levels.items()}
+    elif trend == 'Downward':
+        levels = {k: v * 0.98 for k, v in levels.items()}
 
-def prepare_data_for_prediction(historical_data):
-    """Prepare data for ML prediction"""
-    df = historical_data.copy()
-    df.reset_index(inplace=True)
-    df = df[['Date', 'Close']]
-    df.columns = ['ds', 'y']
-    return df
+    return levels
 
-def predict_stock_price(historical_data, days_to_predict=30):
-    """Use Prophet and technical analysis to predict future stock prices and trading signals"""
+def predict_stock_price(historical_data, days_to_predict=1):
+    """Use Prophet and technical analysis for intraday predictions"""
     try:
         # Calculate technical indicators
         tech_df = calculate_technical_indicators(historical_data)
-        indicator_signals = get_indicator_signals(tech_df)
         current_price = tech_df['Close'].iloc[-1]
 
-        # Prepare data for Prophet
-        df = prepare_data_for_prediction(historical_data)
+        # Get last week's data for backtesting
+        last_week = tech_df.last('7D')
 
-        # Create and fit Prophet model with more conservative parameters
+        # Prepare Prophet data
+        df = pd.DataFrame({
+            'ds': tech_df.index,
+            'y': tech_df['Close']
+        })
+
+        # Configure Prophet for intraday predictions
         model = Prophet(
-            daily_seasonality=True,
-            yearly_seasonality=True,
-            weekly_seasonality=True,
             changepoint_prior_scale=0.05,
-            seasonality_prior_scale=10,
-            holidays_prior_scale=10
+            daily_seasonality=True,
+            hourly_seasonality=True
+        )
+
+        # Add custom seasonalities
+        model.add_seasonality(
+            name='intraday',
+            period=1/24,
+            fourier_order=5
         )
 
         try:
@@ -136,78 +109,97 @@ def predict_stock_price(historical_data, days_to_predict=30):
             print(f"Model fitting error: {str(fit_error)}")
             raise Exception("Failed to fit prediction model to the data")
 
-        # Create future dates dataframe
-        future_dates = model.make_future_dataframe(periods=days_to_predict)
-
-        # Make predictions
+        # Generate hourly predictions
+        future_dates = model.make_future_dataframe(
+            periods=24*days_to_predict,
+            freq='H'
+        )
         forecast = model.predict(future_dates)
 
-        # Calculate forecast data
-        forecast_data = pd.DataFrame({
-            'Date': forecast['ds'].tail(days_to_predict),
-            'Predicted_Price': forecast['yhat'].tail(days_to_predict),
-            'Lower_Bound': forecast['yhat_lower'].tail(days_to_predict),
-            'Upper_Bound': forecast['yhat_upper'].tail(days_to_predict)
+        # Calculate intraday levels
+        levels = generate_intraday_levels(
+            current_price,
+            tech_df['ATR'].iloc[-1],
+            tech_df['RSI'].iloc[-1],
+            'Upward' if forecast['trend'].diff().mean() > 0 else 'Downward'
+        )
+
+        # Get last week's prediction accuracy
+        last_week_accuracy = {
+            'predictions': len(last_week),
+            'hits': sum(1 for i in range(len(last_week)-1) 
+                       if (last_week['Close'].iloc[i] < last_week['Close'].iloc[i+1] and 
+                           last_week['RSI'].iloc[i] < 70) or
+                          (last_week['Close'].iloc[i] > last_week['Close'].iloc[i+1] and 
+                           last_week['RSI'].iloc[i] > 30)),
+            'accuracy_pct': 0.0
+        }
+        last_week_accuracy['accuracy_pct'] = (
+            last_week_accuracy['hits'] / last_week_accuracy['predictions'] * 100
+            if last_week_accuracy['predictions'] > 0 else 0
+        )
+
+        # Prepare hourly forecast data
+        hourly_forecast = pd.DataFrame({
+            'Time': forecast['ds'].tail(24*days_to_predict),
+            'Price': forecast['yhat'].tail(24*days_to_predict),
+            'Lower_Bound': forecast['yhat_lower'].tail(24*days_to_predict),
+            'Upper_Bound': forecast['yhat_upper'].tail(24*days_to_predict)
         })
 
-        # Generate trading signals (using new indicator signals)
-        signal = 'NEUTRAL'
-        stop_loss = current_price
-        target_1 = current_price
-        target_2 = current_price
-        stop_loss_pct = 0.0
-        target_1_pct = 0.0
-        target_2_pct = 0.0
-        trend = 'Neutral'
+        # Generate trading signals
+        rsi = tech_df['RSI'].iloc[-1]
+        macd = tech_df['MACD'].iloc[-1]
+        mfi = tech_df['MFI'].iloc[-1]
+        williams_r = tech_df['Williams_R'].iloc[-1]
 
-        #Simplified logic -  replace with more sophisticated strategy based on indicator_signals
-        if indicator_signals['RSI']['signal'] == 'Oversold' and indicator_signals['MACD']['signal'] == 'Bullish':
+        # Combined signal logic
+        signal = 'NEUTRAL'
+        if (rsi < 30 and macd > 0 and mfi < 20 and williams_r < -80):
             signal = 'BUY'
-        elif indicator_signals['RSI']['signal'] == 'Overbought' and indicator_signals['MACD']['signal'] == 'Bearish':
+        elif (rsi > 70 and macd < 0 and mfi > 80 and williams_r > -20):
             signal = 'SELL'
 
-        #Placeholder - needs improvement
+        # Calculate targets based on ATR
         atr = tech_df['ATR'].iloc[-1]
-        if signal == 'BUY':
-            stop_loss = current_price - (atr * 2)
-            target_1 = current_price + (atr * 3)
-            target_2 = current_price + (atr * 5)
-        elif signal == 'SELL':
-            stop_loss = current_price + (atr * 2)
-            target_1 = current_price - (atr * 3)
-            target_2 = current_price - (atr * 5)
-        
-        stop_loss_pct = ((stop_loss - current_price) / current_price) * 100
-        target_1_pct = ((target_1 - current_price) / current_price) * 100
-        target_2_pct = ((target_2 - current_price) / current_price) * 100
+        targets = {
+            'stop_loss': current_price - (atr * 2) if signal == 'BUY' else current_price + (atr * 2),
+            'target_1': current_price + (atr * 3) if signal == 'BUY' else current_price - (atr * 3),
+            'target_2': current_price + (atr * 5) if signal == 'BUY' else current_price - (atr * 5)
+        }
 
-        recent_trend = (
-            forecast['trend'].tail(days_to_predict).mean() -
-            forecast['trend'].tail(days_to_predict * 2).head(days_to_predict).mean()
-        )
-        trend = 'Upward' if recent_trend > 0 else 'Downward'
+        # Calculate percentages
+        price_targets = {
+            'stop_loss_pct': ((targets['stop_loss'] - current_price) / current_price) * 100,
+            'target_1_pct': ((targets['target_1'] - current_price) / current_price) * 100,
+            'target_2_pct': ((targets['target_2'] - current_price) / current_price) * 100
+        }
 
         trading_metrics = {
             'signal': signal,
             'current_price': current_price,
-            'stop_loss': round(stop_loss, 2),
-            'stop_loss_pct': round(stop_loss_pct, 2),
-            'target_1': round(target_1, 2),
-            'target_1_pct': round(target_1_pct, 2),
-            'target_2': round(target_2, 2),
-            'target_2_pct': round(target_2_pct, 2),
-            'indicators': indicator_signals,
-            'trend': trend,
-            'confidence_interval': round((forecast['yhat_upper'] - forecast['yhat_lower']).mean(), 2),
-            'prediction_days': days_to_predict
+            'stop_loss': round(targets['stop_loss'], 2),
+            'stop_loss_pct': round(price_targets['stop_loss_pct'], 2),
+            'target_1': round(targets['target_1'], 2),
+            'target_1_pct': round(price_targets['target_1_pct'], 2),
+            'target_2': round(targets['target_2'], 2),
+            'target_2_pct': round(price_targets['target_2_pct'], 2),
+            'support_resistance': levels,
+            'last_week_accuracy': last_week_accuracy,
+            'technical_levels': {
+                'RSI': round(rsi, 2),
+                'MACD': round(macd, 4),
+                'MFI': round(mfi, 2),
+                'Williams_R': round(williams_r, 2)
+            }
         }
-
 
         return {
             'success': True,
-            'forecast_data': forecast_data,
+            'hourly_forecast': hourly_forecast,
             'metrics': trading_metrics
         }
+
     except Exception as e:
         print(f"Prediction error: {str(e)}")
         return {

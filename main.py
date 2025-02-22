@@ -373,7 +373,6 @@ if symbol:
             """, unsafe_allow_html=True)
 
 
-
         with tab3:
             # Price predictions
             st.subheader("Trading Analysis & Predictions")
@@ -382,11 +381,30 @@ if symbol:
             if prediction['success']:
                 metrics = prediction['metrics']
 
+                # Last Week's Performance Card
+                st.markdown("""
+                    <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
+                             box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+                        <h4>Last Week's Prediction Performance</h4>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                perf_col1, perf_col2, perf_col3 = st.columns(3)
+                with perf_col1:
+                    st.metric("Total Predictions", 
+                             metrics['last_week_accuracy']['predictions'])
+                with perf_col2:
+                    st.metric("Successful Predictions", 
+                             metrics['last_week_accuracy']['hits'])
+                with perf_col3:
+                    st.metric("Accuracy", 
+                             f"{metrics['last_week_accuracy']['accuracy_pct']:.1f}%")
+
                 # Trading Signal Card
                 signal_color = {
-                    'BUY': '#10B981',  # Green
-                    'SELL': '#EF4444',  # Red
-                    'NEUTRAL': '#6B7280'  # Gray
+                    'BUY': '#10B981',
+                    'SELL': '#EF4444',
+                    'NEUTRAL': '#6B7280'
                 }[metrics['signal']]
 
                 st.markdown(f"""
@@ -420,67 +438,127 @@ if symbol:
                     </div>
                 """, unsafe_allow_html=True)
 
+                # Support and Resistance Levels
+                st.markdown("""
+                    <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
+                             box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+                        <h4>Intraday Levels</h4>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                levels = metrics['support_resistance']
+                level_col1, level_col2 = st.columns(2)
+
+                with level_col1:
+                    st.markdown(f"""
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
+                            <p style='margin: 0; color: #666;'>Resistance 2</p>
+                            <p style='font-size: 1.5rem; margin: 0; color: #EF4444;'>
+                                ₹{levels['resistance_2']:.2f}
+                            </p>
+                        </div>
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem;'>
+                            <p style='margin: 0; color: #666;'>Resistance 1</p>
+                            <p style='font-size: 1.5rem; margin: 0; color: #EF4444;'>
+                                ₹{levels['resistance_1']:.2f}
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                with level_col2:
+                    st.markdown(f"""
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
+                            <p style='margin: 0; color: #666;'>Support 1</p>
+                            <p style='font-size: 1.5rem; margin: 0; color: #10B981;'>
+                                ₹{levels['support_1']:.2f}
+                            </p>
+                        </div>
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem;'>
+                            <p style='margin: 0; color: #666;'>Support 2</p>
+                            <p style='font-size: 1.5rem; margin: 0; color: #10B981;'>
+                                ₹{levels['support_2']:.2f}
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
                 # Technical Indicators
-                col1, col2, col3 = st.columns(3)
-                with col1:
+                tech_levels = metrics['technical_levels']
+                tech_col1, tech_col2 = st.columns(2)
+
+                with tech_col1:
                     st.markdown(f"""
                         <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
                             <p style='margin: 0; color: #666;'>RSI (14)</p>
-                            <p style='font-size: 1.5rem; margin: 0;'>{metrics['rsi']:.2f}</p>
-                            <p style='color: #666;'>{
-                                'Overbought' if metrics['rsi'] > 70
-                                else 'Oversold' if metrics['rsi'] < 30
+                            <p style='font-size: 1.5rem; margin: 0;'>{tech_levels['RSI']:.2f}</p>
+                            <p style='color: {
+                                "#EF4444" if tech_levels['RSI'] > 70
+                                else "#10B981" if tech_levels['RSI'] < 30
+                                else "#6B7280"
+                            };'>{
+                                'Overbought' if tech_levels['RSI'] > 70
+                                else 'Oversold' if tech_levels['RSI'] < 30
+                                else 'Neutral'
+                            }</p>
+                        </div>
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem;'>
+                            <p style='margin: 0; color: #666;'>MACD</p>
+                            <p style='font-size: 1.5rem; margin: 0;'>{tech_levels['MACD']:.4f}</p>
+                            <p style='color: {
+                                "#10B981" if tech_levels['MACD'] > 0
+                                else "#EF4444"
+                            };'>{
+                                'Bullish' if tech_levels['MACD'] > 0
+                                else 'Bearish'
+                            }</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                with tech_col2:
+                    st.markdown(f"""
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
+                            <p style='margin: 0; color: #666;'>Money Flow Index</p>
+                            <p style='font-size: 1.5rem; margin: 0;'>{tech_levels['MFI']:.2f}</p>
+                            <p style='color: {
+                                "#EF4444" if tech_levels['MFI'] > 80
+                                else "#10B981" if tech_levels['MFI'] < 20
+                                else "#6B7280"
+                            };'>{
+                                'Overbought' if tech_levels['MFI'] > 80
+                                else 'Oversold' if tech_levels['MFI'] < 20
+                                else 'Neutral'
+                            }</p>
+                        </div>
+                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem;'>
+                            <p style='margin: 0; color: #666;'>Williams %R</p>
+                            <p style='font-size: 1.5rem; margin: 0;'>{tech_levels['Williams_R']:.2f}</p>
+                            <p style='color: {
+                                "#EF4444" if tech_levels['Williams_R'] > -20
+                                else "#10B981" if tech_levels['Williams_R'] < -80
+                                else "#6B7280"
+                            };'>{
+                                'Overbought' if tech_levels['Williams_R'] > -20
+                                else 'Oversold' if tech_levels['Williams_R'] < -80
                                 else 'Neutral'
                             }</p>
                         </div>
                     """, unsafe_allow_html=True)
 
-                with col2:
-                    st.markdown(f"""
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
-                            <p style='margin: 0; color: #666;'>MACD</p>
-                            <p style='font-size: 1.5rem; margin: 0;'>{metrics['macd']:.4f}</p>
-                            <p style='color: {
-                                "#10B981" if metrics['macd'] > 0 else "#EF4444"
-                            };'>{
-                                'Bullish' if metrics['macd'] > 0 else 'Bearish'
-                            }</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-                with col3:
-                    st.markdown(f"""
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
-                            <p style='margin: 0; color: #666;'>Trend ({metrics['prediction_days']} Days)</p>
-                            <p style='font-size: 1.5rem; margin: 0;'>{metrics['trend']}</p>
-                            <p style='color: #666;'>CI: ₹{metrics['confidence_interval']:.2f}</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-                # Prediction Chart
+                # Hourly Prediction Chart
+                hourly_pred = prediction['hourly_forecast']
                 pred_fig = go.Figure()
 
-                # Historical prices
+                # Add price line
                 pred_fig.add_trace(go.Scatter(
-                    x=data['historical_data'].index,
-                    y=data['historical_data']['Close'],
-                    name='Historical',
-                    line=dict(color='#1f77b4')
+                    x=hourly_pred['Time'],
+                    y=hourly_pred['Price'],
+                    name='Predicted Price',
+                    line=dict(color='#2ca02c')
                 ))
 
-                # Predictions
-                pred_data = prediction['forecast_data']
+                # Add confidence interval
                 pred_fig.add_trace(go.Scatter(
-                    x=pred_data['Date'],
-                    y=pred_data['Predicted_Price'],
-                    name='Predicted',
-                    line=dict(color='#2ca02c', dash='dash')
-                ))
-
-                # Confidence interval
-                pred_fig.add_trace(go.Scatter(
-                    x=pred_data['Date'].tolist() + pred_data['Date'].tolist()[::-1],
-                    y=pred_data['Upper_Bound'].tolist() + pred_data['Lower_Bound'].tolist()[::-1],
+                    x=hourly_pred['Time'].tolist() + hourly_pred['Time'].tolist()[::-1],
+                    y=hourly_pred['Upper_Bound'].tolist() + hourly_pred['Lower_Bound'].tolist()[::-1],
                     fill='toself',
                     fillcolor='rgba(44,160,44,0.1)',
                     line=dict(color='rgba(255,255,255,0)'),
@@ -488,8 +566,8 @@ if symbol:
                 ))
 
                 pred_fig.update_layout(
-                    title=f"{metrics['prediction_days']}-Day Price Prediction",
-                    xaxis_title="Date",
+                    title="Hourly Price Predictions",
+                    xaxis_title="Time",
                     yaxis_title="Price (INR)",
                     template="plotly_white",
                     height=500
@@ -497,7 +575,7 @@ if symbol:
 
                 st.plotly_chart(pred_fig, use_container_width=True)
 
-                # Trading Recommendations
+                # Trading Guidelines
                 st.markdown("""
                     <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
                              box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 1rem;'>
@@ -507,7 +585,8 @@ if symbol:
                             <li>Consider taking partial profits at Target 1</li>
                             <li>Move stop-loss to break-even after Target 1 is reached</li>
                             <li>Hold remaining position for Target 2</li>
-                            <li>Monitor RSI and MACD for potential trend reversals</li>
+                            <li>Monitor technical indicators for potential trend reversals</li>
+                            <li>Use support and resistance levels for entry/exit points</li>
                         </ul>
                     </div>
                 """, unsafe_allow_html=True)
