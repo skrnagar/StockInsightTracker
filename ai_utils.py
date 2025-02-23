@@ -81,11 +81,11 @@ def predict_stock_price(historical_data, days_to_predict=1):
         current_price = tech_df['Close'].iloc[-1]
 
         # Get last week's data for backtesting
-        last_week = tech_df.last('7D')
+        last_week = tech_df.iloc[-7:]
 
-        # Prepare Prophet data
+        # Prepare Prophet data (remove timezone)
         df = pd.DataFrame({
-            'ds': tech_df.index,
+            'ds': tech_df.index.tz_localize(None),
             'y': tech_df['Close']
         })
 
@@ -159,12 +159,19 @@ def predict_stock_price(historical_data, days_to_predict=1):
         elif (rsi > 70 and macd < 0 and mfi > 80 and williams_r > -20):
             signal = 'SELL'
 
-        # Calculate targets based on ATR
+        # Calculate intraday targets with percentage-based stops
         atr = tech_df['ATR'].iloc[-1]
+        volatility = tech_df['Close'].pct_change().std()
+        
+        # Base percentages on volatility
+        stop_pct = max(0.5, min(2.0, volatility * 100))
+        target1_pct = stop_pct * 1.5
+        target2_pct = stop_pct * 2.5
+        
         targets = {
-            'stop_loss': current_price - (atr * 2) if signal == 'BUY' else current_price + (atr * 2),
-            'target_1': current_price + (atr * 3) if signal == 'BUY' else current_price - (atr * 3),
-            'target_2': current_price + (atr * 5) if signal == 'BUY' else current_price - (atr * 5)
+            'stop_loss': current_price * (1 - stop_pct/100) if signal == 'BUY' else current_price * (1 + stop_pct/100),
+            'target_1': current_price * (1 + target1_pct/100) if signal == 'BUY' else current_price * (1 - target1_pct/100),
+            'target_2': current_price * (1 + target2_pct/100) if signal == 'BUY' else current_price * (1 - target2_pct/100)
         }
 
         # Calculate percentages
