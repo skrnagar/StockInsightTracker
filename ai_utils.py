@@ -92,14 +92,13 @@ def predict_stock_price(historical_data, days_to_predict=1):
         # Configure Prophet for intraday predictions
         model = Prophet(
             changepoint_prior_scale=0.05,
-            daily_seasonality=True,
-            hourly_seasonality=True
+            daily_seasonality=True
         )
 
-        # Add custom seasonalities
+        # Add custom seasonalities for intraday patterns
         model.add_seasonality(
             name='intraday',
-            period=1/24,
+            period=0.5,
             fourier_order=5
         )
 
@@ -217,7 +216,7 @@ def analyze_sentiment(text):
         cleaned_text = text[:4000] if text else "No text available for analysis"
 
         response = client.chat.completions.create(
-            model="gpt-4",  # Using standard GPT-4 model
+            model="gpt-3.5-turbo",  # Using GPT-3.5-turbo model
             messages=[
                 {
                     "role": "system",
