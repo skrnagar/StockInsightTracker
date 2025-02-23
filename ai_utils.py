@@ -7,9 +7,8 @@ import openai
 import os
 import httpx
 import ta
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
 
 def calculate_technical_indicators(df):
     """Calculate essential technical indicators"""
@@ -33,7 +32,7 @@ def calculate_technical_indicators(df):
         # Volatility indicators
         df['ATR'] = ta.volatility.average_true_range(df['High'], df['Low'], df['Close'])
 
-        # Calculate Bollinger Bands manually since ta.volatility.bollinger_bands is not working
+        # Calculate Bollinger Bands
         rolling_mean = df['Close'].rolling(window=20).mean()
         rolling_std = df['Close'].rolling(window=20).std()
         df['BB_Upper'] = rolling_mean + (rolling_std * 2)
@@ -45,40 +44,20 @@ def calculate_technical_indicators(df):
         print(f"Error calculating technical indicators: {str(e)}")
         raise e
 
-def prepare_intraday_prediction_data(df):
-    """Prepare data for intraday prediction"""
-    features = ['Open', 'High', 'Low', 'Close', 'Volume', 
-               'RSI', 'MACD', 'ROC', 'Williams_R', 'MFI']
+def prepare_features(df):
+    """Prepare features for ML model"""
+    features = pd.DataFrame()
+    features['Close'] = df['Close']
+    features['Volume'] = df['Volume']
+    features['RSI'] = df['RSI']
+    features['MACD'] = df['MACD']
+    features['SMA_20'] = df['SMA_20']
+    features['SMA_50'] = df['SMA_50']
+    features['ATR'] = df['ATR']
 
-    X = df[features].values
-    y = df['Close'].values
+    return features.dropna()
 
-    # Scale the features
-    scaler = MinMaxScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    return X_scaled, y, scaler
-
-def generate_intraday_levels(current_price, atr, rsi, trend):
-    """Generate intraday support/resistance levels"""
-    volatility_factor = 1.5 if rsi > 70 or rsi < 30 else 1.0
-
-    levels = {
-        'support_1': current_price - (atr * volatility_factor),
-        'support_2': current_price - (atr * volatility_factor * 1.5),
-        'resistance_1': current_price + (atr * volatility_factor),
-        'resistance_2': current_price + (atr * volatility_factor * 1.5)
-    }
-
-    # Adjust levels based on trend
-    if trend == 'Upward':
-        levels = {k: v * 1.02 for k, v in levels.items()}
-    elif trend == 'Downward':
-        levels = {k: v * 0.98 for k, v in levels.items()}
-
-    return levels
-
-def predict_stock_price(historical_data, days_to_predict=1):
+def predict_stock_price(historical_data):
     """Generate trading signals and predictions"""
     try:
         # Calculate technical indicators
@@ -199,6 +178,59 @@ def predict_stock_price(historical_data, days_to_predict=1):
             'error': f"Failed to generate prediction: {str(e)}"
         }
 
+def predict_lstm(historical_data, prediction_days=5):
+    """Generate predictions using Random Forest instead of LSTM"""
+    try:
+        # Prepare features
+        df = calculate_technical_indicators(historical_data.copy())
+        features = prepare_features(df)
+
+        # Create target variable (next day's price)
+        features['Target'] = features['Close'].shift(-1)
+        features = features.dropna()
+
+        X = features.drop(['Target', 'Close'], axis=1)
+        y = features['Target']
+
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+
+        # Train model
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
+        model.fit(X_train, y_train)
+
+        # Make predictions
+        predictions = []
+        last_features = X.iloc[-1:].copy()
+
+        for _ in range(prediction_days):
+            pred = model.predict(last_features)[0]
+            predictions.append(pred)
+
+            # Update features for next prediction
+            last_features['Volume'] = last_features['Volume'].mean()
+            last_features['RSI'] = last_features['RSI'].mean()
+            last_features['MACD'] = last_features['MACD'].mean()
+            last_features['SMA_20'] = pred
+            last_features['SMA_50'] = last_features['SMA_50'].mean()
+            last_features['ATR'] = last_features['ATR'].mean()
+
+        return {
+            'success': True,
+            'predictions': predictions,
+            'dates': [
+                (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+                for i in range(1, prediction_days + 1)
+            ]
+        }
+
+    except Exception as e:
+        print(f"ML prediction error: {str(e)}")
+        return {
+            'success': False,
+            'error': f"Failed to generate ML prediction: {str(e)}"
+        }
+
 def analyze_sentiment(text):
     """Analyze sentiment of text using OpenAI"""
     try:
@@ -296,76 +328,3 @@ async def fetch_stock_news(symbol):
                 'sentiment_label': 'Neutral'
             }
         ]
-
-def create_lstm_model(input_shape):
-    """Create and compile LSTM model"""
-    model = Sequential([
-        LSTM(units=50, return_sequences=True, input_shape=input_shape),
-        Dropout(0.2),
-        LSTM(units=50, return_sequences=False),
-        Dropout(0.2),
-        Dense(units=25),
-        Dense(units=1)
-    ])
-    model.compile(optimizer='adam', loss='mean_squared_error')
-    return model
-
-def prepare_lstm_data(data, look_back=60):
-    """Prepare data for LSTM model"""
-    scaler = MinMaxScaler()
-    scaled_data = scaler.fit_transform(data)
-
-    X, y = [], []
-    for i in range(look_back, len(scaled_data)):
-        X.append(scaled_data[i-look_back:i])
-        y.append(scaled_data[i, 0])
-
-    return np.array(X), np.array(y), scaler
-
-def predict_lstm(historical_data, prediction_days=5):
-    """Generate predictions using LSTM model"""
-    try:
-        # Prepare data
-        data = historical_data[['Close']].values
-        X, y, scaler = prepare_lstm_data(data)
-
-        # Split data
-        split = int(len(X) * 0.8)
-        X_train, X_test = X[:split], X[split:]
-        y_train, y_test = y[:split], y[split:]
-
-        # Create and train model
-        model = create_lstm_model((X.shape[1], X.shape[2]))
-        model.fit(X_train, y_train, epochs=50, batch_size=32, validation_split=0.1, verbose=0)
-
-        # Make predictions
-        last_sequence = X[-1:]
-        predictions = []
-
-        for _ in range(prediction_days):
-            next_pred = model.predict(last_sequence)
-            predictions.append(next_pred[0, 0])
-
-            # Update sequence for next prediction
-            last_sequence = np.roll(last_sequence, -1)
-            last_sequence[0, -1] = next_pred
-
-        # Inverse transform predictions
-        predictions = np.array(predictions).reshape(-1, 1)
-        predictions = scaler.inverse_transform(predictions)
-
-        return {
-            'success': True,
-            'predictions': predictions.flatten().tolist(),
-            'dates': [
-                (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
-                for i in range(1, prediction_days + 1)
-            ]
-        }
-
-    except Exception as e:
-        print(f"LSTM prediction error: {str(e)}")
-        return {
-            'success': False,
-            'error': f"Failed to generate LSTM prediction: {str(e)}"
-        }
