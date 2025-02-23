@@ -7,6 +7,9 @@ import openai
 import os
 import httpx
 import ta
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
 
 def calculate_technical_indicators(df):
     """Calculate essential technical indicators"""
@@ -293,3 +296,76 @@ async def fetch_stock_news(symbol):
                 'sentiment_label': 'Neutral'
             }
         ]
+
+def create_lstm_model(input_shape):
+    """Create and compile LSTM model"""
+    model = Sequential([
+        LSTM(units=50, return_sequences=True, input_shape=input_shape),
+        Dropout(0.2),
+        LSTM(units=50, return_sequences=False),
+        Dropout(0.2),
+        Dense(units=25),
+        Dense(units=1)
+    ])
+    model.compile(optimizer='adam', loss='mean_squared_error')
+    return model
+
+def prepare_lstm_data(data, look_back=60):
+    """Prepare data for LSTM model"""
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(data)
+
+    X, y = [], []
+    for i in range(look_back, len(scaled_data)):
+        X.append(scaled_data[i-look_back:i])
+        y.append(scaled_data[i, 0])
+
+    return np.array(X), np.array(y), scaler
+
+def predict_lstm(historical_data, prediction_days=5):
+    """Generate predictions using LSTM model"""
+    try:
+        # Prepare data
+        data = historical_data[['Close']].values
+        X, y, scaler = prepare_lstm_data(data)
+
+        # Split data
+        split = int(len(X) * 0.8)
+        X_train, X_test = X[:split], X[split:]
+        y_train, y_test = y[:split], y[split:]
+
+        # Create and train model
+        model = create_lstm_model((X.shape[1], X.shape[2]))
+        model.fit(X_train, y_train, epochs=50, batch_size=32, validation_split=0.1, verbose=0)
+
+        # Make predictions
+        last_sequence = X[-1:]
+        predictions = []
+
+        for _ in range(prediction_days):
+            next_pred = model.predict(last_sequence)
+            predictions.append(next_pred[0, 0])
+
+            # Update sequence for next prediction
+            last_sequence = np.roll(last_sequence, -1)
+            last_sequence[0, -1] = next_pred
+
+        # Inverse transform predictions
+        predictions = np.array(predictions).reshape(-1, 1)
+        predictions = scaler.inverse_transform(predictions)
+
+        return {
+            'success': True,
+            'predictions': predictions.flatten().tolist(),
+            'dates': [
+                (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+                for i in range(1, prediction_days + 1)
+            ]
+        }
+
+    except Exception as e:
+        print(f"LSTM prediction error: {str(e)}")
+        return {
+            'success': False,
+            'error': f"Failed to generate LSTM prediction: {str(e)}"
+        }
