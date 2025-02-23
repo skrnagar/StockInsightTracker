@@ -1,22 +1,17 @@
 import streamlit as st
 import plotly.graph_objects as go
 from utils import get_stock_data, format_large_number
-from ai_utils import predict_stock_price, analyze_sentiment, fetch_stock_news
+from ai_utils import predict_stock_price
 import pandas as pd
-import asyncio
-from datetime import datetime
-from ta import add_all_ta_features
-import talib as ta
 
 # Page configuration
 st.set_page_config(
     page_title="Indian Stock Data Visualization",
     page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# Custom CSS for modern UI inspired by x.ai
+# Custom CSS (Merging relevant styles)
 st.markdown("""
     <style>
     .stApp {
@@ -31,171 +26,56 @@ st.markdown("""
     .css-1d391kg {
         padding-top: 2rem;
     }
-    .stock-card {
-        background: linear-gradient(to bottom right, #1F2937, #374151);
-        padding: 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        margin-bottom: 1rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .metric-container {
-        background: linear-gradient(145deg, #1F2937, #374151);
-        padding: 1.2rem;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+    .stProgress .st-bo {
+        background-color: #0E86D4;
     }
     .metric-value {
-        font-size: 28px;
-        font-weight: 600;
-        color: #F9FAFB;
-        margin-bottom: 0.3rem;
+        font-size: 24px;
+        font-weight: bold;
     }
     .metric-label {
         font-size: 14px;
-        color: #9CA3AF;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .news-card {
-        background: linear-gradient(145deg, #1F2937, #374151);
-        padding: 1.2rem;
-        border-radius: 12px;
-        margin-bottom: 0.8rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        transition: transform 0.2s;
-    }
-    .news-card:hover {
-        transform: translateY(-2px);
-    }
-    .news-positive {
-        border-left: 4px solid #00CCBB;
-    }
-    .news-neutral {
-        border-left: 4px solid #9CA3AF;
-    }
-    .news-negative {
-        border-left: 4px solid #EF4444;
+        color: #666;
     }
     .prediction-card {
-        background: linear-gradient(145deg, #1F2937, #374151);
-        padding: 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        margin-top: 1rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 2rem;
-        background-color: transparent;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 3rem;
-        color: #9CA3AF;
-        background-color: transparent;
-        border-radius: 4px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 0 1rem;
-    }
-    .stTabs [data-baseweb="tab-highlight"] {
-        background-color: #00CCBB;
-    }
-    .stTabs [aria-selected="true"] {
-        color: white;
-        background: linear-gradient(145deg, #00CCBB, #00B3A6);
-    }
-    div[data-testid="stToolbar"] {
-        display: none;
-    }
-    .st-emotion-cache-16txtl3 {
-        padding: 2rem;
-        background: rgba(31, 41, 55, 0.5);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-    }
-    .st-emotion-cache-16txtl3 h1 {
-        color: #F9FAFB;
-        font-size: 2.5rem;
-        font-weight: 600;
-        margin-bottom: 1rem;
-    }
-    .st-emotion-cache-16txtl3 p {
-        color: #9CA3AF;
-        font-size: 1.1rem;
-        line-height: 1.6;
-    }
-    button[kind="primary"] {
-        background: linear-gradient(145deg, #00CCBB, #00B3A6);
-        border: none;
-        padding: 0.6rem 1.2rem;
-        font-weight: 500;
-    }
-    .plot-container {
-        background: rgba(31, 41, 55, 0.5);
-        border-radius: 12px;
+        background-color: white;
         padding: 1rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        border: 1px solid #eee;
+        margin: 1rem 0;
+    }
+    .prediction-header {
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #eee;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Custom Plotly theme configuration
-plotly_theme = {
-    'layout': {
-        'plot_bgcolor': 'rgba(31, 41, 55, 0)',
-        'paper_bgcolor': 'rgba(31, 41, 55, 0)',
-        'font': {
-            'color': '#F9FAFB',
-            'family': 'sans-serif'
-        },
-        'xaxis': {
-            'gridcolor': 'rgba(156, 163, 175, 0.1)',
-            'linecolor': 'rgba(156, 163, 175, 0.2)',
-            'zerolinecolor': 'rgba(156, 163, 175, 0.2)'
-        },
-        'yaxis': {
-            'gridcolor': 'rgba(156, 163, 175, 0.1)',
-            'linecolor': 'rgba(156, 163, 175, 0.2)',
-            'zerolinecolor': 'rgba(156, 163, 175, 0.2)'
-        }
-    }
-}
-
 # Sidebar
 st.sidebar.title("📈 Stock Analysis")
 symbol = st.sidebar.text_input("Enter NSE Stock Symbol (e.g., RELIANCE, TCS)", value="")
-days_to_predict = st.sidebar.slider("Prediction Days", 7, 60, 30)
 
 if symbol:
-    # Show loading spinner
     with st.spinner(f'Analyzing {symbol.upper()}...'):
         data = get_stock_data(symbol.upper())
 
     if data['success']:
-        # Main content area
+        # Display company name and basic metrics
         st.title(f"📊 {data['company_name']}")
 
-        # Show cached data notice if applicable
-        if data.get('cached'):
-            st.markdown("""
-                <div class='cached-data-notice'>
-                    ℹ️ Showing cached data due to temporary connection issues with live data source
-                </div>
-            """, unsafe_allow_html=True)
-
-        # Key metrics in a grid
+        # Key metrics
         metrics = data['metrics']
         col1, col2, col3, col4 = st.columns(4)
 
-        # Current Price and Change
         with col1:
             price_change = metrics['Current Price'] - metrics['Previous Close']
             price_change_pct = (price_change / metrics['Previous Close']) * 100
             color = "green" if price_change >= 0 else "red"
             st.markdown(f"""
-                <div class='metric-container'>
+                <div style='text-align: center;'>
                     <div class='metric-value'>₹{metrics['Current Price']:.2f}</div>
                     <div class='metric-label'>Current Price</div>
                     <div style='color: {color};'>
@@ -204,35 +84,32 @@ if symbol:
                 </div>
             """, unsafe_allow_html=True)
 
-        # Market Cap
         with col2:
             st.markdown(f"""
-                <div class='metric-container'>
+                <div style='text-align: center;'>
                     <div class='metric-value'>{format_large_number(metrics['Market Cap'])}</div>
                     <div class='metric-label'>Market Cap</div>
                 </div>
             """, unsafe_allow_html=True)
 
-        # PE Ratio
         with col3:
             st.markdown(f"""
-                <div class='metric-container'>
+                <div style='text-align: center;'>
                     <div class='metric-value'>{metrics['PE Ratio']:.2f}</div>
                     <div class='metric-label'>P/E Ratio</div>
                 </div>
             """, unsafe_allow_html=True)
 
-        # Volume
         with col4:
             st.markdown(f"""
-                <div class='metric-container'>
+                <div style='text-align: center;'>
                     <div class='metric-value'>{format_large_number(metrics['Volume'])}</div>
                     <div class='metric-label'>Volume</div>
                 </div>
             """, unsafe_allow_html=True)
 
-        # Create tabs for different views
-        tab1, tab2, tab3, tab4 = st.tabs(["📈 Price Chart", "📊 Technical Analysis", "🔮 Predictions", "📰 News & Sentiment"])
+        # Create tabs
+        tab1, tab2 = st.tabs(["📈 Price Chart", "🎯 Trading Signals"])
 
         with tab1:
             # Price chart
@@ -247,479 +124,96 @@ if symbol:
             ))
 
             fig.update_layout(
-                title="Historical Price Movement",
+                title="Price History",
                 xaxis_title="Date",
                 yaxis_title="Price (INR)",
                 template="plotly_white",
-                height=500,
-                xaxis_rangeslider_visible=False,
-                **plotly_theme
+                height=600,
+                xaxis_rangeslider_visible=False
             )
 
             st.plotly_chart(fig, use_container_width=True)
 
         with tab2:
-            st.subheader("Technical Analysis")
-
-            #Calculate technical indicators
-            def calculate_technical_indicators(df):
-                df['SMA_20'] = ta.SMA(df['Close'], timeperiod=20)
-                df['SMA_50'] = ta.SMA(df['Close'], timeperiod=50)
-                df['RSI'] = ta.RSI(df['Close'], timeperiod=14)
-                df['MACD'], df['MACD_Signal'], df['MACD_Hist'] = ta.MACD(df['Close'], fastperiod=12, slowperiod=26, signalperiod=9)
-                df['ADX'] = ta.ADX(df['High'], df['Low'], df['Close'], timeperiod=14)
-                df['BB_Upper'], df['BB_Middle'], df['BB_Lower'] = ta.BBANDS(df['Close'], timeperiod=20)
-                df['Stoch_K'], df['Stoch_D'] = ta.STOCH(df['High'], df['Low'], df['Close'], fastk_period=14, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
-
-                return df
-
-            def get_indicator_signals(df):
-              signals = {}
-              signals['RSI'] = {'value': df['RSI'].iloc[-1], 'signal': 'Neutral'}
-              if df['RSI'].iloc[-1] > 70: signals['RSI']['signal'] = 'Overbought'
-              if df['RSI'].iloc[-1] < 30: signals['RSI']['signal'] = 'Oversold'
-
-              signals['MACD'] = {'value': df['MACD'].iloc[-1], 'signal': 'Neutral'}
-              if df['MACD'].iloc[-1] > 0: signals['MACD']['signal'] = 'Bullish'
-              if df['MACD'].iloc[-1] < 0: signals['MACD']['signal'] = 'Bearish'
-
-              signals['ADX'] = {'value': df['ADX'].iloc[-1], 'signal': 'Neutral'}
-              if df['ADX'].iloc[-1] > 25: signals['ADX']['signal'] = 'Strong Trend'
-
-              return signals
-
-
-
-            tech_data = calculate_technical_indicators(data['historical_data'])
-            signals = get_indicator_signals(tech_data)
-
-            # Technical Overview Card
-            st.markdown("""
-                <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
-                         box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
-                    <h4>Technical Overview</h4>
-                    <p>Analysis based on multiple technical indicators</p>
-                </div>
-            """, unsafe_allow_html=True)
-
-            # Display indicator signals in a grid
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.markdown(f"""
-                    <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 1rem;'>
-                        <p style='margin: 0; color: #666;'>RSI (14)</p>
-                        <p style='font-size: 1.5rem; margin: 0;'>{signals['RSI']['value']:.2f}</p>
-                        <p style='color: {
-                            "#EF4444" if signals['RSI']['signal'] == 'Overbought'
-                            else "#10B981" if signals['RSI']['signal'] == 'Oversold'
-                            else "#6B7280"
-                        };'>{signals['RSI']['signal']}</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            with col2:
-                st.markdown(f"""
-                    <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 1rem;'>
-                        <p style='margin: 0; color: #666;'>MACD</p>
-                        <p style='font-size: 1.5rem; margin: 0;'>{signals['MACD']['value']:.4f}</p>
-                        <p style='color: {
-                            "#10B981" if signals['MACD']['signal'] == 'Bullish'
-                            else "#EF4444" if signals['MACD']['signal'] == 'Bearish'
-                            else "#6B7280"
-                        };'>{signals['MACD']['signal']}</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            with col3:
-                st.markdown(f"""
-                    <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 1rem;'>
-                        <p style='margin: 0; color: #666;'>Trend Strength (ADX)</p>
-                        <p style='font-size: 1.5rem; margin: 0;'>{signals['ADX']['value']:.2f}</p>
-                        <p style='color: {
-                            "#10B981" if signals['ADX']['signal'] == 'Strong Trend'
-                            else "#6B7280"
-                        };'>{signals['ADX']['signal']}</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            # Technical Charts
-            selected_indicator = st.selectbox(
-                "Select Technical Indicator",
-                ["Bollinger Bands", "MACD", "RSI", "Stochastic", "Moving Averages"]
-            )
-
-            if selected_indicator == "Bollinger Bands":
-                fig = go.Figure()
-
-                # Price and Bollinger Bands
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['Close'],
-                    name='Price', line=dict(color='#1f77b4')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['BB_Upper'],
-                    name='Upper Band', line=dict(color='gray', dash='dash')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['BB_Lower'],
-                    name='Lower Band', line=dict(color='gray', dash='dash'),
-                    fill='tonexty'
-                ))
-
-            elif selected_indicator == "MACD":
-                fig = go.Figure()
-
-                # MACD Line and Signal
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['MACD'],
-                    name='MACD Line', line=dict(color='#1f77b4')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['MACD_Signal'],
-                    name='Signal Line', line=dict(color='#ff7f0e')
-                ))
-
-                # MACD Histogram
-                colors = ['#10B981' if val >= 0 else '#EF4444' for val in tech_data['MACD']]
-                fig.add_trace(go.Bar(
-                    x=tech_data.index, y=tech_data['MACD_Hist'],
-                    name='MACD Histogram', marker_color=colors
-                ))
-
-            elif selected_indicator == "RSI":
-                fig = go.Figure()
-
-                # RSI Line
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['RSI'],
-                    name='RSI', line=dict(color='#1f77b4')
-                ))
-
-                # Overbought/Oversold Lines
-                fig.add_hline(y=70, line_dash="dash", line_color="red", annotation_text="Overbought")
-                fig.add_hline(y=30, line_dash="dash", line_color="green", annotation_text="Oversold")
-
-            elif selected_indicator == "Stochastic":
-                fig = go.Figure()
-
-                # Stochastic K and D lines
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['Stoch_K'],
-                    name='%K', line=dict(color='#1f77b4')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['Stoch_D'],
-                    name='%D', line=dict(color='#ff7f0e')
-                ))
-
-                # Overbought/Oversold Lines
-                fig.add_hline(y=80, line_dash="dash", line_color="red")
-                fig.add_hline(y=20, line_dash="dash", line_color="green")
-
-            else:  # Moving Averages
-                fig = go.Figure()
-
-                # Price and Moving Averages
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['Close'],
-                    name='Price', line=dict(color='#1f77b4')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['SMA_20'],
-                    name='SMA 20', line=dict(color='#ff7f0e')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['SMA_50'],
-                    name='SMA 50', line=dict(color='#2ca02c')
-                ))
-
-            # Update layout for all charts
-            fig.update_layout(
-                title=f"{selected_indicator} Analysis",
-                xaxis_title="Date",
-                yaxis_title="Value",
-                template="plotly_white",
-                height=500,
-                **plotly_theme
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Indicator Interpretation
-            st.markdown(f"""
-                <div style='background-color: white; padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
-                    <h4>Indicator Interpretation</h4>
-                    <p>Current Signal: <strong>{signals[selected_indicator.replace(' ', '_')]['signal']}</strong></p>
-                </div>
-            """, unsafe_allow_html=True)
-
-
-        with tab3:
-            # Price predictions
-            st.subheader("Trading Analysis & Predictions")
-            prediction = predict_stock_price(data['historical_data'], days_to_predict)
+            # Trading signals and predictions
+            prediction = predict_stock_price(data['historical_data'])
 
             if prediction['success']:
                 metrics = prediction['metrics']
-
-                # Last Week's Performance Card
-                st.markdown("""
-                    <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
-                             box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
-                        <h4>Last Week's Prediction Performance</h4>
-                    </div>
-                """, unsafe_allow_html=True)
-
-                perf_col1, perf_col2, perf_col3 = st.columns(3)
-                with perf_col1:
-                    st.metric("Total Predictions",
-                              metrics['last_week_accuracy']['predictions'])
-                with perf_col2:
-                    st.metric("Successful Predictions",
-                              metrics['last_week_accuracy']['hits'])
-                with perf_col3:
-                    st.metric("Accuracy",
-                              f"{metrics['last_week_accuracy']['accuracy_pct']:.1f}%")
-
-                # Trading Signal Card
                 signal_color = {
-                    'BUY': '#10B981',
-                    'SELL': '#EF4444',
-                    'NEUTRAL': '#6B7280'
+                    'BUY': 'green',
+                    'SELL': 'red',
+                    'NEUTRAL': 'gray'
                 }[metrics['signal']]
 
+                # Signal and Targets
                 st.markdown(f"""
-                    <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
-                             box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1rem;
-                             border-left: 4px solid {signal_color};'>
-                        <h3 style='margin: 0; color: {signal_color};'>{metrics['signal']} Signal</h3>
-                        <div style='display: flex; justify-content: space-between; margin-top: 1rem;'>
-                            <div>
-                                <p style='margin: 0; color: #666;'>Current Price</p>
-                                <p style='font-size: 1.5rem; margin: 0;'>₹{metrics['current_price']:.2f}</p>
-                            </div>
-                            <div>
-                                <p style='margin: 0; color: #666;'>Stop Loss</p>
-                                <p style='font-size: 1.5rem; margin: 0;'>₹{metrics['stop_loss']:.2f}</p>
-                                <p style='color: #EF4444;'>{metrics['stop_loss_pct']:.2f}%</p>
-                            </div>
+                    <div class='prediction-card'>
+                        <div class='prediction-header' style='color: {signal_color};'>
+                            {metrics['signal']} Signal
                         </div>
-                        <div style='display: flex; justify-content: space-between; margin-top: 1rem;'>
-                            <div>
-                                <p style='margin: 0; color: #666;'>Target 1</p>
-                                <p style='font-size: 1.5rem; margin: 0;'>₹{metrics['target_1']:.2f}</p>
-                                <p style='color: #10B981;'>{metrics['target_1_pct']:.2f}%</p>
-                            </div>
-                            <div>
-                                <p style='margin: 0; color: #666;'>Target 2</p>
-                                <p style='font-size: 1.5rem; margin: 0;'>₹{metrics['target_2']:.2f}</p>
-                                <p style='color: #10B981;'>{metrics['target_2_pct']:.2f}%</p>
-                            </div>
-                        </div>
+                        <table style='width: 100%;'>
+                            <tr>
+                                <td><strong>Current Price:</strong></td>
+                                <td>₹{metrics['current_price']:.2f}</td>
+                                <td><strong>Stop Loss:</strong></td>
+                                <td>₹{metrics['stop_loss']:.2f} ({metrics['stop_loss_pct']}%)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Target 1:</strong></td>
+                                <td>₹{metrics['target_1']:.2f} ({metrics['target_1_pct']}%)</td>
+                                <td><strong>Target 2:</strong></td>
+                                <td>₹{metrics['target_2']:.2f} ({metrics['target_2_pct']}%)</td>
+                            </tr>
+                        </table>
                     </div>
                 """, unsafe_allow_html=True)
-
-                # Support and Resistance Levels
-                st.markdown("""
-                    <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
-                             box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
-                        <h4>Intraday Levels</h4>
-                    </div>
-                """, unsafe_allow_html=True)
-
-                levels = metrics['support_resistance']
-                level_col1, level_col2 = st.columns(2)
-
-                with level_col1:
-                    st.markdown(f"""
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
-                            <p style='margin: 0; color: #666;'>Resistance 2</p>
-                            <p style='font-size: 1.5rem; margin: 0; color: #EF4444;'>
-                                ₹{levels['resistance_2']:.2f}
-                            </p>
-                        </div>
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem;'>
-                            <p style='margin: 0; color: #666;'>Resistance 1</p>
-                            <p style='font-size: 1.5rem; margin: 0; color: #EF4444;'>
-                                ₹{levels['resistance_1']:.2f}
-                            </p>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-                with level_col2:
-                    st.markdown(f"""
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
-                            <p style='margin: 0; color: #666;'>Support 1</p>
-                            <p style='font-size: 1.5rem; margin: 0; color: #10B981;'>
-                                ₹{levels['support_1']:.2f}
-                            </p>
-                        </div>
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem;'>
-                            <p style='margin: 0; color: #666;'>Support 2</p>
-                            <p style='font-size: 1.5rem; margin: 0; color: #10B981;'>
-                                ₹{levels['support_2']:.2f}
-                            </p>
-                        </div>
-                    """, unsafe_allow_html=True)
 
                 # Technical Indicators
-                tech_levels = metrics['technical_levels']
-                tech_col1, tech_col2 = st.columns(2)
+                st.markdown("""
+                    <div class='prediction-card'>
+                        <div class='prediction-header'>Technical Indicators</div>
+                        </div>
+                """, unsafe_allow_html=True)
 
+                tech_col1, tech_col2, tech_col3 = st.columns(3)
+
+                indicators = metrics['technical_indicators']
                 with tech_col1:
-                    st.markdown(f"""
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
-                            <p style='margin: 0; color: #666;'>RSI (14)</p>
-                            <p style='font-size: 1.5rem; margin: 0;'>{tech_levels['RSI']:.2f}</p>
-                            <p style='color: {
-                                "#EF4444" if tech_levels['RSI'] > 70
-                                else "#10B981" if tech_levels['RSI'] < 30
-                                else "#6B7280"
-                            };'>{
-                                'Overbought' if tech_levels['RSI'] > 70
-                                else 'Oversold' if tech_levels['RSI'] < 30
-                                else 'Neutral'
-                            }</p>
-                        </div>
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem;'>
-                            <p style='margin: 0; color: #666;'>MACD</p>
-                            <p style='font-size: 1.5rem; margin: 0;'>{tech_levels['MACD']:.4f}</p>
-                            <p style='color: {
-                                "#10B981" if tech_levels['MACD'] > 0
-                                else "#EF4444"
-                            };'>{
-                                'Bullish' if tech_levels['MACD'] > 0
-                                else 'Bearish'
-                            }</p>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.metric("RSI (14)", f"{indicators['RSI']:.2f}")
+                    st.metric("MACD", f"{indicators['MACD']:.4f}")
 
                 with tech_col2:
-                    st.markdown(f"""
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center;'>
-                            <p style='margin: 0; color: #666;'>Money Flow Index</p>
-                            <p style='font-size: 1.5rem; margin: 0;'>{tech_levels['MFI']:.2f}</p>
-                            <p style='color: {
-                                "#EF4444" if tech_levels['MFI'] > 80
-                                else "#10B981" if tech_levels['MFI'] < 20
-                                else "#6B7280"
-                            };'>{
-                                'Overbought' if tech_levels['MFI'] > 80
-                                else 'Oversold' if tech_levels['MFI'] < 20
-                                else 'Neutral'
-                            }</p>
-                        </div>
-                        <div style='background-color: white; padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem;'>
-                            <p style='margin: 0; color: #666;'>Williams %R</p>
-                            <p style='font-size: 1.5rem; margin: 0;'>{tech_levels['Williams_R']:.2f}</p>
-                            <p style='color: {
-                                "#EF4444" if tech_levels['Williams_R'] > -20
-                                else "#10B981" if tech_levels['Williams_R'] < -80
-                                else "#6B7280"
-                            };'>{
-                                'Overbought' if tech_levels['Williams_R'] > -20
-                                else 'Oversold' if tech_levels['Williams_R'] < -80
-                                else 'Neutral'
-                            }</p>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.metric("SMA 20", f"₹{indicators['SMA_20']:.2f}")
+                    st.metric("SMA 50", f"₹{indicators['SMA_50']:.2f}")
 
-                # Hourly Prediction Chart
-                hourly_pred = prediction['hourly_forecast']
-                pred_fig = go.Figure()
+                with tech_col3:
+                    st.metric("MFI", f"{indicators['MFI']:.2f}")
+                    st.metric("ATR", f"₹{indicators['ATR']:.2f}")
 
-                # Add price line
-                pred_fig.add_trace(go.Scatter(
-                    x=hourly_pred['Time'],
-                    y=hourly_pred['Price'],
-                    name='Predicted Price',
-                    line=dict(color='#2ca02c')
-                ))
-
-                # Add confidence interval
-                pred_fig.add_trace(go.Scatter(
-                    x=hourly_pred['Time'].tolist() + hourly_pred['Time'].tolist()[::-1],
-                    y=hourly_pred['Upper_Bound'].tolist() + hourly_pred['Lower_Bound'].tolist()[::-1],
-                    fill='toself',
-                    fillcolor='rgba(44,160,44,0.1)',
-                    line=dict(color='rgba(255,255,255,0)'),
-                    name='Confidence Interval'
-                ))
-
-                pred_fig.update_layout(
-                    title="Hourly Price Predictions",
-                    xaxis_title="Time",
-                    yaxis_title="Price (INR)",
-                    template="plotly_white",
-                    height=500,
-                    **plotly_theme
-                )
-
-                st.plotly_chart(pred_fig, use_container_width=True)
+                # Last Week's Performance
+                accuracy = metrics['last_week_accuracy']
+                st.markdown(f"""
+                    <div class='prediction-card'>
+                        <div class='prediction-header'>Last Week's Performance</div>
+                        <p>Success Rate: {accuracy['accuracy_pct']:.1f}% ({accuracy['hits']} out of {accuracy['predictions']} predictions)</p>
+                    </div>
+                """, unsafe_allow_html=True)
 
                 # Trading Guidelines
                 st.markdown("""
-                    <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
-                             box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 1rem;'>
-                                                <h4>Trading Guidelines</h4>
-                        <ul style='margin: 0; padding-left: 1.2rem;'>
+                    <div class='prediction-card'>
+                        <div class='prediction-header'>Trading Guidelines</div>
+                        <ul>
                             <li>Set stop-loss orders at the indicated level to manage risk</li>
                             <li>Consider taking partial profits at Target 1</li>
                             <li>Move stop-loss to break-even after Target 1 is reached</li>
                             <li>Hold remaining position for Target 2</li>
-                            <li>Monitor technical indicators for potential trend reversals</li>
-                            <li>Use support and resistance levels for entry/exit points</li>
                         </ul>
                     </div>
                 """, unsafe_allow_html=True)
-
             else:
                 st.error("Failed to generate predictions. Please try again later.")
-
-        with tab4:
-            # News and sentiment
-            news_col1, news_col2 = st.columns([2, 1])
-
-            with news_col1:
-                st.subheader("Latest News")
-                news_items = asyncio.run(fetch_stock_news(symbol))
-
-                for item in news_items:
-                    sentiment_color = {
-                        'Positive': 'news-positive',
-                        'Neutral': 'news-neutral',
-                        'Negative': 'news-negative'
-                    }[item['sentiment_label']]
-
-                    st.markdown(f"""
-                        <div class='news-card {sentiment_color}'>
-                            <h4>{item['title']}</h4>
-                            <p>{item['summary'][:200]}...</p>
-                            <p><small>Published: {item['time_published']}</small></p>
-                            <p><small>Sentiment: {item['sentiment_label']}</small></p>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-            with news_col2:
-                st.subheader("Sentiment Analysis")
-                sentiment_result = analyze_sentiment(' '.join([item['title'] + ' ' + item['summary'] for item in news_items]))
-
-                if isinstance(sentiment_result, str):
-                    sentiment_result = eval(sentiment_result)
-
-                sentiment_color = '#10B981' if sentiment_result['sentiment'] > 0.2 else '#EF4444' if sentiment_result['sentiment'] < -0.2 else '#6B7280'
-
-                st.markdown(f"""
-                    <div style='background-color: white; padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
-                        <h4>Overall Sentiment</h4>
-                        <div style='font-size: 24px; color: {sentiment_color}; margin: 1rem 0;'>
-                            {sentiment_result['sentiment']:.2f}
-                        </div>
-                        <p>Confidence: {sentiment_result['confidence']:.2f}</p>
-                        <p>{sentiment_result['summary']}</p>
-                    </div>
-                """, unsafe_allow_html=True)
 
         # Additional metrics table
         with st.expander("View All Metrics"):
@@ -736,10 +230,9 @@ if symbol:
                     format_large_number(metrics['Volume'])
                 ]
             })
-
             st.dataframe(metrics_df, use_container_width=True)
 
-            # Download button for CSV
+            # Download button
             csv = metrics_df.to_csv(index=False)
             st.download_button(
                 label="Download Metrics as CSV",
@@ -747,11 +240,9 @@ if symbol:
                 file_name=f"{symbol}_metrics.csv",
                 mime="text/csv"
             )
-
     else:
         st.error(f"Error fetching data: {data['error']}")
 else:
-    # Show welcome message
     st.markdown("""
         <div style='text-align: center; padding: 2rem;'>
             <h1>📈 Indian Stock Market Analytics</h1>
