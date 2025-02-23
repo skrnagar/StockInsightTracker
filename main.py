@@ -5,9 +5,8 @@ from ai_utils import predict_stock_price, analyze_sentiment, fetch_stock_news
 import pandas as pd
 import asyncio
 from datetime import datetime
-from ta import add_all_ta_features # Added import for technical analysis library
-import talib as ta # Added import for another technical analysis library
-
+from ta import add_all_ta_features
+import talib as ta
 
 # Page configuration
 st.set_page_config(
@@ -17,69 +16,152 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern UI
+# Custom CSS for modern UI inspired by x.ai
 st.markdown("""
     <style>
     .stApp {
-        background-color: #f8f9fa;
+        background: linear-gradient(to bottom, #111827, #1F2937);
     }
     .main {
         padding: 2rem;
     }
+    .block-container {
+        padding-top: 2rem;
+    }
+    .css-1d391kg {
+        padding-top: 2rem;
+    }
     .stock-card {
-        background-color: white;
+        background: linear-gradient(to bottom right, #1F2937, #374151);
         padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         margin-bottom: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
     .metric-container {
-        background-color: white;
-        padding: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        background: linear-gradient(145deg, #1F2937, #374151);
+        padding: 1.2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
     .metric-value {
-        font-size: 24px;
-        font-weight: bold;
-        color: #1f2937;
+        font-size: 28px;
+        font-weight: 600;
+        color: #F9FAFB;
+        margin-bottom: 0.3rem;
     }
     .metric-label {
         font-size: 14px;
-        color: #6b7280;
+        color: #9CA3AF;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
     .news-card {
-        background-color: white;
-        padding: 1rem;
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
-        border-left: 4px solid;
+        background: linear-gradient(145deg, #1F2937, #374151);
+        padding: 1.2rem;
+        border-radius: 12px;
+        margin-bottom: 0.8rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: transform 0.2s;
+    }
+    .news-card:hover {
+        transform: translateY(-2px);
     }
     .news-positive {
-        border-left-color: #10B981;
+        border-left: 4px solid #00CCBB;
     }
     .news-neutral {
-        border-left-color: #6B7280;
+        border-left: 4px solid #9CA3AF;
     }
     .news-negative {
-        border-left-color: #EF4444;
+        border-left: 4px solid #EF4444;
     }
     .prediction-card {
-        background-color: white;
+        background: linear-gradient(145deg, #1F2937, #374151);
         padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         margin-top: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    .cached-data-notice {
-        padding: 8px;
-        background-color: #f0f2f6;
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2rem;
+        background-color: transparent;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 3rem;
+        color: #9CA3AF;
+        background-color: transparent;
         border-radius: 4px;
-        font-size: 14px;
-        color: #666;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 0 1rem;
+    }
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: #00CCBB;
+    }
+    .stTabs [aria-selected="true"] {
+        color: white;
+        background: linear-gradient(145deg, #00CCBB, #00B3A6);
+    }
+    div[data-testid="stToolbar"] {
+        display: none;
+    }
+    .st-emotion-cache-16txtl3 {
+        padding: 2rem;
+        background: rgba(31, 41, 55, 0.5);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+    }
+    .st-emotion-cache-16txtl3 h1 {
+        color: #F9FAFB;
+        font-size: 2.5rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+    .st-emotion-cache-16txtl3 p {
+        color: #9CA3AF;
+        font-size: 1.1rem;
+        line-height: 1.6;
+    }
+    button[kind="primary"] {
+        background: linear-gradient(145deg, #00CCBB, #00B3A6);
+        border: none;
+        padding: 0.6rem 1.2rem;
+        font-weight: 500;
+    }
+    .plot-container {
+        background: rgba(31, 41, 55, 0.5);
+        border-radius: 12px;
+        padding: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
     </style>
 """, unsafe_allow_html=True)
+
+# Custom Plotly theme configuration
+plotly_theme = {
+    'layout': {
+        'plot_bgcolor': 'rgba(31, 41, 55, 0)',
+        'paper_bgcolor': 'rgba(31, 41, 55, 0)',
+        'font': {
+            'color': '#F9FAFB',
+            'family': 'sans-serif'
+        },
+        'xaxis': {
+            'gridcolor': 'rgba(156, 163, 175, 0.1)',
+            'linecolor': 'rgba(156, 163, 175, 0.2)',
+            'zerolinecolor': 'rgba(156, 163, 175, 0.2)'
+        },
+        'yaxis': {
+            'gridcolor': 'rgba(156, 163, 175, 0.1)',
+            'linecolor': 'rgba(156, 163, 175, 0.2)',
+            'zerolinecolor': 'rgba(156, 163, 175, 0.2)'
+        }
+    }
+}
 
 # Sidebar
 st.sidebar.title("📈 Stock Analysis")
@@ -170,7 +252,8 @@ if symbol:
                 yaxis_title="Price (INR)",
                 template="plotly_white",
                 height=500,
-                xaxis_rangeslider_visible=False
+                xaxis_rangeslider_visible=False,
+                **plotly_theme
             )
 
             st.plotly_chart(fig, use_container_width=True)
@@ -187,7 +270,6 @@ if symbol:
                 df['ADX'] = ta.ADX(df['High'], df['Low'], df['Close'], timeperiod=14)
                 df['BB_Upper'], df['BB_Middle'], df['BB_Lower'] = ta.BBANDS(df['Close'], timeperiod=20)
                 df['Stoch_K'], df['Stoch_D'] = ta.STOCH(df['High'], df['Low'], df['Close'], fastk_period=14, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
-
 
                 return df
 
@@ -210,7 +292,6 @@ if symbol:
 
             tech_data = calculate_technical_indicators(data['historical_data'])
             signals = get_indicator_signals(tech_data)
-
 
             # Technical Overview Card
             st.markdown("""
@@ -291,7 +372,7 @@ if symbol:
 
                 # MACD Line and Signal
                 fig.add_trace(go.Scatter(
-                    x=tech_data.index, y=tech_data['MACD_Line'],
+                    x=tech_data.index, y=tech_data['MACD'],
                     name='MACD Line', line=dict(color='#1f77b4')
                 ))
                 fig.add_trace(go.Scatter(
@@ -302,7 +383,7 @@ if symbol:
                 # MACD Histogram
                 colors = ['#10B981' if val >= 0 else '#EF4444' for val in tech_data['MACD']]
                 fig.add_trace(go.Bar(
-                    x=tech_data.index, y=tech_data['MACD'],
+                    x=tech_data.index, y=tech_data['MACD_Hist'],
                     name='MACD Histogram', marker_color=colors
                 ))
 
@@ -359,7 +440,8 @@ if symbol:
                 xaxis_title="Date",
                 yaxis_title="Value",
                 template="plotly_white",
-                height=500
+                height=500,
+                **plotly_theme
             )
 
             st.plotly_chart(fig, use_container_width=True)
@@ -391,14 +473,14 @@ if symbol:
 
                 perf_col1, perf_col2, perf_col3 = st.columns(3)
                 with perf_col1:
-                    st.metric("Total Predictions", 
-                             metrics['last_week_accuracy']['predictions'])
+                    st.metric("Total Predictions",
+                              metrics['last_week_accuracy']['predictions'])
                 with perf_col2:
-                    st.metric("Successful Predictions", 
-                             metrics['last_week_accuracy']['hits'])
+                    st.metric("Successful Predictions",
+                              metrics['last_week_accuracy']['hits'])
                 with perf_col3:
-                    st.metric("Accuracy", 
-                             f"{metrics['last_week_accuracy']['accuracy_pct']:.1f}%")
+                    st.metric("Accuracy",
+                              f"{metrics['last_week_accuracy']['accuracy_pct']:.1f}%")
 
                 # Trading Signal Card
                 signal_color = {
@@ -570,7 +652,8 @@ if symbol:
                     xaxis_title="Time",
                     yaxis_title="Price (INR)",
                     template="plotly_white",
-                    height=500
+                    height=500,
+                    **plotly_theme
                 )
 
                 st.plotly_chart(pred_fig, use_container_width=True)
@@ -579,7 +662,7 @@ if symbol:
                 st.markdown("""
                     <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
                              box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 1rem;'>
-                        <h4>Trading Guidelines</h4>
+                                                <h4>Trading Guidelines</h4>
                         <ul style='margin: 0; padding-left: 1.2rem;'>
                             <li>Set stop-loss orders at the indicated level to manage risk</li>
                             <li>Consider taking partial profits at Target 1</li>
