@@ -80,6 +80,18 @@ wheels = [
 ]
 
 [[package]]
+name = "aiohttp-retry"
+version = "2.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9d/61/ebda4d8e3d8cfa1fd3db0fb428db2dd7461d5742cea35178277ad180b033/aiohttp_retry-2.9.1.tar.gz", hash = "sha256:8eb75e904ed4ee5c2ec242fefe85bf04240f685391c4879d8f541d6028ff01f1", size = 13608 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/99/84ba7273339d0f3dfa57901b846489d2e5c2cd731470167757f1935fffbd/aiohttp_retry-2.9.1-py3-none-any.whl", hash = "sha256:66d2759d1921838256a05a3f80ad7e724936f083e35be5abb5e16eed6be6dc54", size = 9981 },
+]
+
+[[package]]
 name = "aiosignal"
 version = "1.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1392,6 +1404,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyjwt"
+version = "2.10.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/46/bd74733ff231675599650d3e47f361794b22ef3e3770998dda30d3b63726/pyjwt-2.10.1.tar.gz", hash = "sha256:3cc5772eb20009233caf06e9d8a0577824723b44e6648ee0a2aedb6cf9381953", size = 87785 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/ad/689f02752eeec26aed679477e80e632ef1b682313be70793d798c1d5fc8f/PyJWT-2.10.1-py3-none-any.whl", hash = "sha256:dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb", size = 22997 },
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1452,6 +1473,8 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "streamlit" },
     { name = "ta" },
+    { name = "ta-lib-easy" },
+    { name = "twilio" },
     { name = "yfinance" },
 ]
 
@@ -1469,6 +1492,8 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.38" },
     { name = "streamlit", specifier = ">=1.42.2" },
     { name = "ta", specifier = ">=0.11.0" },
+    { name = "ta-lib-easy", specifier = ">=1.0.3" },
+    { name = "twilio", specifier = ">=9.4.6" },
     { name = "yfinance", specifier = ">=0.2.54" },
 ]
 
@@ -1766,6 +1791,34 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e0/9a/37d92a6b470dc9088612c2399a68f1a9ac22872d4e1eff416818e22ab11b/ta-0.11.0.tar.gz", hash = "sha256:de86af43418420bd6b088a2ea9b95483071bf453c522a8441bc2f12bcf8493fd", size = 25308 }
 
 [[package]]
+name = "ta-lib-easy"
+version = "1.0.3"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/6e/0f1cb64451390dcc3360fa30112faafd441bb001e9f87e48706877114987/ta_lib_easy-1.0.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:1e0bbb6621134b4079957bd1b0cd8e1505ef7bf4acc2dc9c646646e1ad69d176", size = 1207381 },
+    { url = "https://files.pythonhosted.org/packages/e8/69/e27f626c1fc8459de3178ea0a4d51202cdf47b1c506dddde7dfce94b5bdf/ta_lib_easy-1.0.3-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9a57a1a0ef48b58c8a7a920a660969a60abe866d067a6a09e6ae009e8ef4e33e", size = 637400 },
+    { url = "https://files.pythonhosted.org/packages/08/74/6d655d73189c111e718f5355a42fcf9585d417d1c0b77333b1d06653f33f/ta_lib_easy-1.0.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5ecb96b5db673f2d2b408ac0465146b9fec4e2f19863821b4a7e6be8e108070a", size = 735455 },
+    { url = "https://files.pythonhosted.org/packages/5d/47/55647be4d19d7f86360c8fcfd833c0ea29c5732f7289c8db6a108c192743/ta_lib_easy-1.0.3-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:ee43b24c3275ddc71c146a77c361aa97273b0bf3d4e347f0f1ce234edfd7b4b5", size = 671658 },
+    { url = "https://files.pythonhosted.org/packages/7f/e2/85b526010d97de38d5f93b10d812451eddd58f0e93acbacd29d12970c7fe/ta_lib_easy-1.0.3-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:1178442e4130f4e64e63ec61cbae13350ec95b1464bd04c38e75a973e21a578e", size = 774841 },
+    { url = "https://files.pythonhosted.org/packages/d9/f1/2b7cf76ca9f6071b07dce1dfebcdcb397afce160f27fda92c4141cdca0aa/ta_lib_easy-1.0.3-cp311-cp311-win32.whl", hash = "sha256:993c7cdc1d12f3110439a78e792c66adf65faa0e72331236117751488bf916e1", size = 409274 },
+    { url = "https://files.pythonhosted.org/packages/34/14/e9223b4798506b9b30991b55eaddddcd7684d235846f40391a941a492fca/ta_lib_easy-1.0.3-cp311-cp311-win_amd64.whl", hash = "sha256:07933a7d0ab246f81daab243b1ae09fc57fabbcac87a418b4bf686dd340434c5", size = 533959 },
+    { url = "https://files.pythonhosted.org/packages/d2/c1/9cae83842ca3c5c4f99ddcd139fbb6ab93a0358733d00d16c8396c98d149/ta_lib_easy-1.0.3-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:77fef2dc4ce73c0519d93617c52609128e89eb08bef74374946e51da5d8fd95b", size = 1213074 },
+    { url = "https://files.pythonhosted.org/packages/0c/02/2ef562511f487e106289f31320be45e1bec67a160b995fccf103ee4c710c/ta_lib_easy-1.0.3-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3f1ea56e454a8ff3db41740b63214982d072f7f2535539bf63cc3f2f59246d09", size = 624467 },
+    { url = "https://files.pythonhosted.org/packages/b7/15/022b9f7e1540fd513274b9ff0bfda88c299c1c7c72eeaa8c34187315f2c9/ta_lib_easy-1.0.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7ba499e0a854151a2fa8e82f2d0ba7571eab04690a41cbbc499454d5ba055ce8", size = 717230 },
+    { url = "https://files.pythonhosted.org/packages/84/b2/cff0bd895863d7ad7a346de40659d71cd62d4aa82e67b2219ded49099922/ta_lib_easy-1.0.3-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:e581984f768bfaa1e5070ff9f02819f68b69550d27c92a829add65f116ba07b5", size = 654591 },
+    { url = "https://files.pythonhosted.org/packages/9f/33/3190a9888416b7e8f431f6eb8f15af373c886fd39d63e1c3f4f139352a44/ta_lib_easy-1.0.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:9086e5bda1bf042b66ae6cad6949a72f46bc8bec3104fdd2010c6000d06302cc", size = 757773 },
+    { url = "https://files.pythonhosted.org/packages/1b/c3/73b89fe10b7e3c27c2ae22885bbfdafeae98aa4bbdbf2270d79c9c495888/ta_lib_easy-1.0.3-cp312-cp312-win32.whl", hash = "sha256:76ffdb3854967ea6b84db839427f531088bc1b69ba729daa9a6c2787b94de262", size = 401538 },
+    { url = "https://files.pythonhosted.org/packages/f3/3e/e012f308d38fef00e05a0c56cf23ceed817fc0151489147e08f8b2b626c5/ta_lib_easy-1.0.3-cp312-cp312-win_amd64.whl", hash = "sha256:a05cf20a3436d4abaff0ba621c5a811f3b978778d492726a44c5edf61ff13cc4", size = 533642 },
+    { url = "https://files.pythonhosted.org/packages/0c/92/8474351ab5aee7ff5d65fdfb2755c7db323ac0fb9fe709e1a5078debad7e/ta_lib_easy-1.0.3-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:d445caa871f7b7123ae747c698b44eb21b0f014d8ab892e0805352a92bc1a80d", size = 1210399 },
+    { url = "https://files.pythonhosted.org/packages/48/96/fcf16f01b4dd08f879c032aa4a557b0ae61f3de2ca2efc99a52c54b80e17/ta_lib_easy-1.0.3-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:e748a5d613f14340fea48531709e0f442539bb4752f2d685e6031b5a1e39546e", size = 623668 },
+    { url = "https://files.pythonhosted.org/packages/81/fc/a5a4ac8b1cbf11d39a758f2e65f704ec871288214c5774a9aeeed8de1fd4/ta_lib_easy-1.0.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:629cfff288536e7270b49752de55c2cdf6f850cfde8c10066694be184e6be3d4", size = 716971 },
+    { url = "https://files.pythonhosted.org/packages/cc/bb/51b5aec10c707d896f679d71186a6198ba7e37b111a79336caae00d6d726/ta_lib_easy-1.0.3-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:3854cde10eeb4e4958a25fe0b06376dcbd8bacd362e749441d4ca77a5a002b8c", size = 655246 },
+    { url = "https://files.pythonhosted.org/packages/a7/8b/f31932eb0003919b19e25ebf8d8f42778c1a5f9e60a6075f2d4703923b99/ta_lib_easy-1.0.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:e1c3cbdc20cc3f75f30e8dd84bde57f00f81b0a8ee0fc1d3bb80388c5cbba5a7", size = 756254 },
+    { url = "https://files.pythonhosted.org/packages/f2/94/bc7a011d2e61765f912813560e24c7ced410e6ccfb57d393ba9b9d80a36c/ta_lib_easy-1.0.3-cp313-cp313-win32.whl", hash = "sha256:ea4fa6ea0b9b631bbe3a65d02ff62f0bd96a0fe39ab2e44648338086aa0983ca", size = 399735 },
+    { url = "https://files.pythonhosted.org/packages/9e/a6/869e2aa36e8f53569d5d588dd23eb1c494068a66b35e41ed41109f555947/ta_lib_easy-1.0.3-cp313-cp313-win_amd64.whl", hash = "sha256:7f2a6da9f68e8fb3174d3a5a33e5294b54cbae9af71788d38600dfc1cc4c2510", size = 532445 },
+]
+
+[[package]]
 name = "tenacity"
 version = "9.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1820,6 +1873,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a8/4b/29b4ef32e036bb34e4ab51796dd745cdba7ed47ad142a9f4a1eb8e0c744d/tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2", size = 169737 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2", size = 78540 },
+]
+
+[[package]]
+name = "twilio"
+version = "9.4.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "aiohttp-retry" },
+    { name = "pyjwt" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3a/ae/b6fe3746a38daa652d491952647eeb512a729058260f4c8f4149d6f7d5bf/twilio-9.4.6.tar.gz", hash = "sha256:ff33a6c3609f4a0769d02c4eb75f7ab55ff2ba962762b076cd39ef7da56fdaa4", size = 991826 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/a0/20dcca40c1c1effaa6c7675d6b35393da3fb001c54973d759736d3cc349f/twilio-9.4.6-py2.py3-none-any.whl", hash = "sha256:6d7d677fa9ded4ee0c366ad0155a1e0af51e129109af603b6ec9cdc8826a5c37", size = 1881903 },
 ]
 
 [[package]]
