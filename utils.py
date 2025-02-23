@@ -42,7 +42,16 @@ def get_stock_data(symbol):
         return {
             'success': True,
             'historical_data': hist,
-            'metrics': metrics,
+            'metrics': {
+                'Current Price': hist['Close'].iloc[-1],
+                'Previous Close': hist['Close'].iloc[-2],
+                'Market Cap': info.get('marketCap', 0),
+                'PE Ratio': info.get('trailingPE', 0),
+                'Dividend Yield': info.get('dividendYield', 0),
+                '52 Week High': hist['High'].max(),
+                '52 Week Low': hist['Low'].min(),
+                'Volume': hist['Volume'].iloc[-1]
+            },
             'company_name': info.get('longName', symbol.replace('.NS', ''))
         }
     except Exception as e:
@@ -59,14 +68,14 @@ def get_stock_data(symbol):
                 } for d in cached_data], index=[d.date for d in cached_data])
 
                 metrics = {
-                    'Current Price': hist_data['Close'].iloc[-1],
-                    'Previous Close': hist_data['Close'].iloc[-2],
+                    'Current Price': float(hist_data['Close'].iloc[-1]),
+                    'Previous Close': float(hist_data['Close'].iloc[-2]),
                     'Market Cap': 0,  # Not available in cached data
                     'PE Ratio': 0,    # Not available in cached data
                     'Dividend Yield': 0,
-                    '52 Week High': hist_data['High'].max(),
-                    '52 Week Low': hist_data['Low'].min(),
-                    'Volume': hist_data['Volume'].iloc[-1]
+                    '52 Week High': float(hist_data['High'].max()),
+                    '52 Week Low': float(hist_data['Low'].min()),
+                    'Volume': int(hist_data['Volume'].iloc[-1])
                 }
 
                 return {
