@@ -1,38 +1,34 @@
 import streamlit as st
 import logging
-import sys
-from logging.handlers import RotatingFileHandler
 
-# Configure logging to both file and console
+# Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        RotatingFileHandler('streamlit_app.log', maxBytes=100000, backupCount=3),
-        logging.StreamHandler(sys.stdout)
-    ]
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-logger.debug("Starting minimal Streamlit application...")
-
 try:
-    # Basic page config
-    logger.debug("Setting page configuration...")
-    st.set_page_config(
-        page_title="Test App",
-        page_icon="📈"
-    )
-    logger.debug("Page configuration complete")
+    logger.info("Starting minimal Streamlit app...")
 
-    # Minimal content
-    logger.debug("Adding content...")
-    st.write("# Welcome to the Test App")
-    st.write("If you can see this message, the server is running correctly.")
-    logger.debug("Content added successfully")
+    # Page configuration
+    st.set_page_config(
+        page_title="Stock Analysis",
+        page_icon="📈",
+        layout="wide"
+    )
+    logger.info("Page configuration complete")
+
+    # Display welcome message
+    st.title("Welcome to Stock Analysis")
+    st.write("Loading basic functionality...")
+    logger.info("Basic UI elements displayed")
 
 except Exception as e:
-    logger.error(f"Startup error: {str(e)}", exc_info=True)
-    st.error("An error occurred during startup. Please check the logs.")
+    logger.error(f"Critical error in app initialization: {str(e)}")
+    st.error("Failed to initialize the application. Please refresh the page.")
 
-logger.debug("Startup sequence complete")
+logger.info("Application startup sequence complete")
+
+if __name__ == "__main__":
+    logger.info("Application startup complete")
