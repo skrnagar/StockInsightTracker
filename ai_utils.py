@@ -6,30 +6,41 @@ from datetime import datetime, timedelta
 import openai
 import os
 import httpx
-import ta  # Technical Analysis library
+import ta
 
 def calculate_technical_indicators(df):
     """Calculate essential technical indicators"""
-    # Trend
-    df['SMA_20'] = ta.trend.sma_indicator(df['Close'], window=20)
-    df['SMA_50'] = ta.trend.sma_indicator(df['Close'], window=50)
-    df['EMA_12'] = ta.trend.ema_indicator(df['Close'], window=12)
-    df['EMA_26'] = ta.trend.ema_indicator(df['Close'], window=26)
+    try:
+        # Basic trend indicators
+        df['SMA_20'] = ta.trend.sma_indicator(df['Close'], window=20)
+        df['SMA_50'] = ta.trend.sma_indicator(df['Close'], window=50)
+        df['EMA_12'] = ta.trend.ema_indicator(df['Close'], window=12)
+        df['EMA_26'] = ta.trend.ema_indicator(df['Close'], window=26)
 
-    # Momentum
-    df['RSI'] = ta.momentum.rsi(df['Close'], window=14)
-    df['MACD'] = ta.trend.macd_diff(df['Close'])
-    df['ROC'] = ta.momentum.roc(df['Close'], window=9)
+        # Momentum indicators
+        df['RSI'] = ta.momentum.rsi(df['Close'], window=14)
+        macd = ta.trend.MACD(df['Close'])
+        df['MACD'] = macd.macd_diff()
+        df['ROC'] = ta.momentum.roc(df['Close'], window=9)
 
-    # Volume
-    df['OBV'] = ta.volume.on_balance_volume(df['Close'], df['Volume'])
-    df['MFI'] = ta.volume.money_flow_index(df['High'], df['Low'], df['Close'], df['Volume'])
+        # Volume indicators
+        df['OBV'] = ta.volume.on_balance_volume(df['Close'], df['Volume'])
+        df['MFI'] = ta.volume.money_flow_index(df['High'], df['Low'], df['Close'], df['Volume'])
 
-    # Volatility
-    df['ATR'] = ta.volatility.average_true_range(df['High'], df['Low'], df['Close'])
-    df['BBL'], df['BBM'], df['BBU'] = ta.volatility.bollinger_bands(df['Close'])
+        # Volatility indicators
+        df['ATR'] = ta.volatility.average_true_range(df['High'], df['Low'], df['Close'])
 
-    return df
+        # Calculate Bollinger Bands manually since ta.volatility.bollinger_bands is not working
+        rolling_mean = df['Close'].rolling(window=20).mean()
+        rolling_std = df['Close'].rolling(window=20).std()
+        df['BB_Upper'] = rolling_mean + (rolling_std * 2)
+        df['BB_Middle'] = rolling_mean
+        df['BB_Lower'] = rolling_mean - (rolling_std * 2)
+
+        return df
+    except Exception as e:
+        print(f"Error calculating technical indicators: {str(e)}")
+        raise e
 
 def prepare_intraday_prediction_data(df):
     """Prepare data for intraday prediction"""
@@ -68,7 +79,7 @@ def predict_stock_price(historical_data, days_to_predict=1):
     """Generate trading signals and predictions"""
     try:
         # Calculate technical indicators
-        df = calculate_technical_indicators(historical_data)
+        df = calculate_technical_indicators(historical_data.copy())
         current_price = df['Close'].iloc[-1]
 
         # Get last week's data for backtesting
@@ -76,28 +87,40 @@ def predict_stock_price(historical_data, days_to_predict=1):
 
         # Calculate base volatility for targets
         atr = df['ATR'].iloc[-1]
-        avg_daily_move = df['Close'].pct_change().abs().mean() * 100  # Average daily move in percentage
+        avg_daily_move = df['Close'].pct_change().abs().mean() * 100
 
         # Generate trading signal based on technical indicators
         signal = 'NEUTRAL'
         confidence = 0.0
 
+        # Get latest indicator values
+        latest = {
+            'rsi': df['RSI'].iloc[-1],
+            'macd': df['MACD'].iloc[-1],
+            'mfi': df['MFI'].iloc[-1],
+            'sma20': df['SMA_20'].iloc[-1],
+            'sma50': df['SMA_50'].iloc[-1],
+            'bb_upper': df['BB_Upper'].iloc[-1],
+            'bb_lower': df['BB_Lower'].iloc[-1],
+            'price': current_price
+        }
+
         # Bullish conditions
         bullish_signals = [
-            df['RSI'].iloc[-1] < 30,  # Oversold
-            df['MACD'].iloc[-1] > 0,  # Positive MACD
-            df['Close'].iloc[-1] > df['SMA_20'].iloc[-1],  # Price above SMA20
-            df['MFI'].iloc[-1] < 20,  # Oversold volume
-            df['Close'].iloc[-1] > df['BBM'].iloc[-1]  # Price above BB middle
+            latest['rsi'] < 30,  # Oversold
+            latest['macd'] > 0,  # Positive MACD
+            latest['price'] > latest['sma20'],  # Price above SMA20
+            latest['mfi'] < 20,  # Oversold volume
+            latest['price'] > latest['bb_lower']  # Price above BB lower
         ]
 
         # Bearish conditions
         bearish_signals = [
-            df['RSI'].iloc[-1] > 70,  # Overbought
-            df['MACD'].iloc[-1] < 0,  # Negative MACD
-            df['Close'].iloc[-1] < df['SMA_20'].iloc[-1],  # Price below SMA20
-            df['MFI'].iloc[-1] > 80,  # Overbought volume
-            df['Close'].iloc[-1] < df['BBM'].iloc[-1]  # Price below BB middle
+            latest['rsi'] > 70,  # Overbought
+            latest['macd'] < 0,  # Negative MACD
+            latest['price'] < latest['sma20'],  # Price below SMA20
+            latest['mfi'] > 80,  # Overbought volume
+            latest['price'] < latest['bb_upper']  # Price below BB upper
         ]
 
         # Calculate signal strength
@@ -156,15 +179,16 @@ def predict_stock_price(historical_data, days_to_predict=1):
                 'target_2_pct': round(((target_2 - current_price) / current_price) * 100, 2),
                 'last_week_accuracy': last_week_accuracy,
                 'technical_indicators': {
-                    'RSI': round(df['RSI'].iloc[-1], 2),
-                    'MACD': round(df['MACD'].iloc[-1], 4),
-                    'SMA_20': round(df['SMA_20'].iloc[-1], 2),
-                    'SMA_50': round(df['SMA_50'].iloc[-1], 2),
-                    'MFI': round(df['MFI'].iloc[-1], 2),
+                    'RSI': round(latest['rsi'], 2),
+                    'MACD': round(latest['macd'], 4),
+                    'SMA_20': round(latest['sma20'], 2),
+                    'SMA_50': round(latest['sma50'], 2),
+                    'MFI': round(latest['mfi'], 2),
                     'ATR': round(atr, 2)
                 }
             }
         }
+
     except Exception as e:
         print(f"Prediction error: {str(e)}")
         return {
