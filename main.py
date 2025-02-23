@@ -1,7 +1,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 from utils import get_stock_data, format_large_number
-from ai_utils import predict_stock_price, predict_lstm, fetch_stock_news, analyze_sentiment
+from ai_utils import predict_stock_price, combine_predictions, fetch_stock_news, analyze_sentiment
 import pandas as pd
 import asyncio
 
@@ -201,22 +201,35 @@ if symbol:
 
         with tab3:
             # AI Predictions
-            lstm_pred = predict_lstm(data['historical_data'])
-            if lstm_pred['success']:
-                st.markdown("<div class='prediction-card'>", unsafe_allow_html=True)
-                st.subheader("LSTM Price Predictions")
+            st.markdown("<div class='prediction-card'>", unsafe_allow_html=True)
+            st.subheader("AI Price Predictions")
 
+            # Get combined predictions from multiple models
+            predictions = combine_predictions(data['historical_data'])
+
+            if predictions['success']:
                 pred_df = pd.DataFrame({
-                    'Date': lstm_pred['dates'],
-                    'Predicted Price': lstm_pred['predictions']
+                    'Date': predictions['dates'],
+                    'Predicted Price': predictions['predictions']
                 })
 
                 fig = go.Figure()
+
+                # Historical prices
+                fig.add_trace(go.Scatter(
+                    x=data['historical_data'].index[-30:],  # Last 30 days
+                    y=data['historical_data']['Close'][-30:],
+                    mode='lines',
+                    name='Historical',
+                    line=dict(color='#888888')
+                ))
+
+                # Predictions
                 fig.add_trace(go.Scatter(
                     x=pred_df['Date'],
                     y=pred_df['Predicted Price'],
                     mode='lines+markers',
-                    name='LSTM Prediction',
+                    name='AI Prediction',
                     line=dict(color='#00ff00')
                 ))
 
@@ -224,11 +237,36 @@ if symbol:
                     template="plotly_dark",
                     plot_bgcolor='rgba(0,0,0,0)',
                     paper_bgcolor='rgba(0,0,0,0)',
-                    height=400
+                    height=400,
+                    title={
+                        'text': "Price Forecast (Combined AI Models)",
+                        'y': 0.95,
+                        'x': 0.5,
+                        'xanchor': 'center',
+                        'yanchor': 'top'
+                    }
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+
+                # Prediction metrics
+                st.markdown("""
+                    <div style='margin-top: 20px;'>
+                        <h4>Prediction Details</h4>
+                        <p>Combined forecast using multiple AI models:</p>
+                        <ul>
+                            <li>ARIMA (Time Series Analysis)</li>
+                            <li>SARIMA (Seasonal Time Series)</li>
+                            <li>Prophet (Facebook's Forecasting Tool)</li>
+                            <li>XGBoost (Gradient Boosting)</li>
+                        </ul>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            else:
+                st.error("Failed to generate AI predictions. Please try again later.")
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
         with tab4:
             # News and Sentiment Analysis

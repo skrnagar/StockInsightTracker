@@ -9,6 +9,9 @@ import httpx
 import ta
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
+import xgboost as xgb
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from statsmodels.tsa.arima.model import ARIMA
 
 def calculate_technical_indicators(df):
     """Calculate essential technical indicators"""
@@ -230,6 +233,151 @@ def predict_lstm(historical_data, prediction_days=5):
             'success': False,
             'error': f"Failed to generate ML prediction: {str(e)}"
         }
+
+def predict_arima(data, prediction_days=5):
+    """Generate predictions using ARIMA model"""
+    try:
+        # Prepare data
+        model = ARIMA(data['Close'], order=(5,1,0))
+        results = model.fit()
+
+        # Make predictions
+        forecast = results.forecast(steps=prediction_days)
+
+        return {
+            'success': True,
+            'predictions': forecast.values.tolist(),
+            'model': 'ARIMA'
+        }
+    except Exception as e:
+        print(f"ARIMA prediction error: {str(e)}")
+        return {'success': False, 'error': str(e), 'model': 'ARIMA'}
+
+def predict_sarima(data, prediction_days=5):
+    """Generate predictions using SARIMA model"""
+    try:
+        # Prepare data
+        model = SARIMAX(data['Close'], 
+                       order=(1, 1, 1), 
+                       seasonal_order=(1, 1, 1, 5))
+        results = model.fit(disp=False)
+
+        # Make predictions
+        forecast = results.forecast(steps=prediction_days)
+
+        return {
+            'success': True,
+            'predictions': forecast.values.tolist(),
+            'model': 'SARIMA'
+        }
+    except Exception as e:
+        print(f"SARIMA prediction error: {str(e)}")
+        return {'success': False, 'error': str(e), 'model': 'SARIMA'}
+
+def predict_prophet(data, prediction_days=5):
+    """Generate predictions using Prophet"""
+    try:
+        # Prepare data for Prophet
+        df_prophet = pd.DataFrame({
+            'ds': data.index,
+            'y': data['Close']
+        })
+
+        # Create and fit model
+        model = Prophet(daily_seasonality=True)
+        model.fit(df_prophet)
+
+        # Make future dataframe
+        future = model.make_future_dataframe(periods=prediction_days)
+        forecast = model.predict(future)
+
+        # Extract predictions
+        predictions = forecast.tail(prediction_days)['yhat'].values
+
+        return {
+            'success': True,
+            'predictions': predictions.tolist(),
+            'model': 'Prophet'
+        }
+    except Exception as e:
+        print(f"Prophet prediction error: {str(e)}")
+        return {'success': False, 'error': str(e), 'model': 'Prophet'}
+
+def predict_xgboost(data, prediction_days=5):
+    """Generate predictions using XGBoost"""
+    try:
+        # Prepare features
+        df = calculate_technical_indicators(data.copy())
+        features = ['RSI', 'MACD', 'SMA_20', 'SMA_50', 'ATR', 'Volume']
+        X = df[features].dropna()
+        y = df['Close'].dropna()
+
+        # Create time series features
+        for i in range(1, 6):
+            X[f'lag_{i}'] = df['Close'].shift(i)
+
+        X = X.dropna()
+        y = y[-len(X):]
+
+        # Train model
+        model = xgb.XGBRegressor(objective='reg:squarederror')
+        model.fit(X, y)
+
+        # Prepare last known values for prediction
+        last_known = X.iloc[-1:].copy()
+        predictions = []
+
+        # Make predictions
+        for _ in range(prediction_days):
+            pred = model.predict(last_known)[0]
+            predictions.append(pred)
+
+            # Update lagged values
+            for i in range(5, 0, -1):
+                last_known[f'lag_{i}'] = last_known[f'lag_{i-1}'] if i > 1 else pred
+
+        return {
+            'success': True,
+            'predictions': predictions,
+            'model': 'XGBoost'
+        }
+    except Exception as e:
+        print(f"XGBoost prediction error: {str(e)}")
+        return {'success': False, 'error': str(e), 'model': 'XGBoost'}
+
+def combine_predictions(data, prediction_days=5):
+    """Combine predictions from multiple models"""
+    predictions = []
+    models = [
+        predict_arima,
+        predict_sarima,
+        predict_prophet,
+        predict_xgboost
+    ]
+
+    successful_predictions = []
+    for model_func in models:
+        result = model_func(data, prediction_days)
+        if result['success']:
+            successful_predictions.append(result['predictions'])
+
+    if not successful_predictions:
+        return {
+            'success': False,
+            'error': 'All models failed to generate predictions'
+        }
+
+    # Average predictions from all successful models
+    combined = np.mean(successful_predictions, axis=0)
+
+    return {
+        'success': True,
+        'predictions': combined.tolist(),
+        'dates': [
+            (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+            for i in range(1, prediction_days + 1)
+        ]
+    }
 
 def analyze_sentiment(text):
     """Analyze sentiment of text using OpenAI"""
