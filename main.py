@@ -379,10 +379,18 @@ if symbol:
             st.plotly_chart(fig, use_container_width=True)
 
             # Indicator Interpretation
+            interpretation_text = {
+                "Bollinger Bands": "Price above upper band suggests overbought, below lower band suggests oversold",
+                "MACD": f"Current Signal: {signals['MACD']['signal']}" if selected_indicator == "MACD" else "",
+                "RSI": f"Current Signal: {signals['RSI']['signal']}" if selected_indicator == "RSI" else "",
+                "Stochastic": "Crossovers above 80 indicate overbought, below 20 indicate oversold",
+                "Moving Averages": "Crossovers of shorter MA above longer MA are bullish signals"
+            }
+            
             st.markdown(f"""
                 <div style='background-color: white; padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
                     <h4>Indicator Interpretation</h4>
-                    <p>Current Signal: <strong>{signals[selected_indicator.replace(' ', '_')]['signal']}</strong></p>
+                    <p>{interpretation_text.get(selected_indicator, "Select an indicator for interpretation")}</p>
                 </div>
             """, unsafe_allow_html=True)
 
