@@ -5,7 +5,9 @@ from ai_utils import predict_stock_price, analyze_sentiment, fetch_stock_news
 import pandas as pd
 import asyncio
 from datetime import datetime
-from ta import trend, momentum, volatility  # Using ta library instead of talib
+from ta import add_all_ta_features # Added import for technical analysis library
+import talib as ta # Added import for another technical analysis library
+
 
 # Page configuration
 st.set_page_config(
@@ -178,32 +180,14 @@ if symbol:
 
             #Calculate technical indicators
             def calculate_technical_indicators(df):
-                # Using ta library instead of talib
-                df['SMA_20'] = trend.sma_indicator(df['Close'], window=20)
-                df['SMA_50'] = trend.sma_indicator(df['Close'], window=50)
-                df['RSI'] = momentum.rsi(df['Close'], window=14)
+                df['SMA_20'] = ta.SMA(df['Close'], timeperiod=20)
+                df['SMA_50'] = ta.SMA(df['Close'], timeperiod=50)
+                df['RSI'] = ta.RSI(df['Close'], timeperiod=14)
+                df['MACD'], df['MACD_Signal'], df['MACD_Hist'] = ta.MACD(df['Close'], fastperiod=12, slowperiod=26, signalperiod=9)
+                df['ADX'] = ta.ADX(df['High'], df['Low'], df['Close'], timeperiod=14)
+                df['BB_Upper'], df['BB_Middle'], df['BB_Lower'] = ta.BBANDS(df['Close'], timeperiod=20)
+                df['Stoch_K'], df['Stoch_D'] = ta.STOCH(df['High'], df['Low'], df['Close'], fastk_period=14, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
 
-                # MACD calculation
-                macd = trend.MACD(df['Close'], 
-                                   window_slow=26, 
-                                   window_fast=12)
-                df['MACD'] = macd.macd_diff()
-                df['MACD_Signal'] = macd.macd_signal()
-                df['MACD_Line'] = macd.macd()
-
-                # ADX calculation
-                df['ADX'] = trend.adx(df['High'], df['Low'], df['Close'], window=14)
-
-                # Bollinger Bands
-                df['BB_Upper'] = volatility.bollinger_hband(df['Close'], window=20)
-                df['BB_Middle'] = volatility.bollinger_mavg(df['Close'], window=20)
-                df['BB_Lower'] = volatility.bollinger_lband(df['Close'], window=20)
-
-                # Stochastic
-                df['Stoch_K'] = momentum.stoch(df['High'], df['Low'], df['Close'],
-                                             window=14, smooth_window=3)
-                df['Stoch_D'] = momentum.stoch_signal(df['High'], df['Low'], df['Close'],
-                                                     window=14, smooth_window=3)
 
                 return df
 
@@ -223,8 +207,10 @@ if symbol:
               return signals
 
 
+
             tech_data = calculate_technical_indicators(data['historical_data'])
             signals = get_indicator_signals(tech_data)
+
 
             # Technical Overview Card
             st.markdown("""
