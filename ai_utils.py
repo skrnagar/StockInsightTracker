@@ -22,6 +22,34 @@ def calculate_technical_indicators(historical_data):
 
     return df
 
+def build_lstm_model(lookback=60):
+    """Build LSTM model for price prediction"""
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import LSTM, Dense, Dropout
+    
+    model = Sequential([
+        LSTM(50, return_sequences=True, input_shape=(lookback, 1)),
+        Dropout(0.2),
+        LSTM(50, return_sequences=False),
+        Dropout(0.2),
+        Dense(25),
+        Dense(1)
+    ])
+    model.compile(optimizer='adam', loss='mse')
+    return model
+
+def prepare_lstm_data(data, lookback=60):
+    """Prepare data for LSTM model"""
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(data.reshape(-1, 1))
+    
+    X, y = [], []
+    for i in range(lookback, len(scaled_data)):
+        X.append(scaled_data[i-lookback:i])
+        y.append(scaled_data[i])
+    
+    return np.array(X), np.array(y), scaler
+
 def predict_stock_price(historical_data, days_to_predict=1):
     """Use Prophet and technical analysis for intraday predictions"""
     try:
@@ -92,8 +120,27 @@ def predict_stock_price(historical_data, days_to_predict=1):
             'resistance_2': current_price + (atr * 1.5)
         }
 
+        # LSTM prediction
+        lookback = 60
+        close_prices = historical_data['Close'].values
+        X, y, scaler = prepare_lstm_data(close_prices, lookback)
+        
+        model = build_lstm_model(lookback)
+        model.fit(X, y, epochs=50, batch_size=32, verbose=0)
+        
+        # Prepare last sequence for prediction
+        last_sequence = close_prices[-lookback:]
+        last_sequence = scaler.transform(last_sequence.reshape(-1, 1))
+        last_sequence = last_sequence.reshape(1, lookback, 1)
+        
+        # Make prediction
+        lstm_pred = model.predict(last_sequence)
+        lstm_pred = scaler.inverse_transform(lstm_pred)[0][0]
+        
+        # Combine with Prophet prediction
         return {
             'success': True,
+            'lstm_prediction': lstm_pred,
             'hourly_forecast': pd.DataFrame({
                 'Time': forecast['ds'].tail(24*days_to_predict),
                 'Price': forecast['yhat'].tail(24*days_to_predict),
