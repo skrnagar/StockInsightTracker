@@ -73,8 +73,36 @@ def generate_intraday_levels(current_price, atr, rsi, trend):
 
     return levels
 
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
+
+def prepare_lstm_data(data, lookback=60):
+    """Prepare data for LSTM model"""
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(data.reshape(-1, 1))
+    
+    X, y = [], []
+    for i in range(lookback, len(scaled_data)):
+        X.append(scaled_data[i-lookback:i])
+        y.append(scaled_data[i])
+    return np.array(X), np.array(y), scaler
+
+def build_lstm_model(lookback):
+    """Build LSTM model"""
+    model = Sequential([
+        LSTM(50, return_sequences=True, input_shape=(lookback, 1)),
+        Dropout(0.2),
+        LSTM(50, return_sequences=False),
+        Dropout(0.2),
+        Dense(1)
+    ])
+    model.compile(optimizer='adam', loss='mse')
+    return model
+
 def predict_stock_price(historical_data, days_to_predict=1):
-    """Use Prophet and technical analysis for intraday predictions"""
+    """Use LSTM, Prophet and technical analysis for intraday predictions"""
     try:
         # Calculate technical indicators
         tech_df = calculate_technical_indicators(historical_data)
@@ -200,10 +228,35 @@ def predict_stock_price(historical_data, days_to_predict=1):
             }
         }
 
+        # Prepare and train LSTM model
+        lookback = 60
+        close_prices = historical_data['Close'].values
+        X, y, scaler = prepare_lstm_data(close_prices, lookback)
+        
+        lstm_model = build_lstm_model(lookback)
+        lstm_model.fit(X, y, epochs=50, batch_size=32, verbose=0)
+        
+        # Generate LSTM predictions
+        last_sequence = X[-1]
+        lstm_pred = lstm_model.predict(np.array([last_sequence]))
+        lstm_price = scaler.inverse_transform(lstm_pred)[0][0]
+        
+        # Combine predictions
+        combined_prediction = (lstm_price + forecast['yhat'].iloc[-1]) / 2
+        
+        # Generate sound alert if strong signal
+        alert_needed = (
+            (signal == 'BUY' and rsi < 30 and macd > 0) or
+            (signal == 'SELL' and rsi > 70 and macd < 0)
+        )
+        
         return {
             'success': True,
             'hourly_forecast': hourly_forecast,
-            'metrics': trading_metrics
+            'metrics': trading_metrics,
+            'lstm_prediction': lstm_price,
+            'combined_prediction': combined_prediction,
+            'alert_needed': alert_needed
         }
 
     except Exception as e:

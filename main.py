@@ -148,7 +148,7 @@ if symbol:
             """, unsafe_allow_html=True)
 
         # Create tabs for different views
-        tab1, tab2, tab3, tab4 = st.tabs(["📈 Price Chart", "📊 Technical Analysis", "🔮 Predictions", "📰 News & Sentiment"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Price Chart", "📊 Technical Analysis", "🔮 Predictions", "📰 News & Sentiment", "🤖 AI Analysis"])
 
         with tab1:
             # Price chart
@@ -386,7 +386,7 @@ if symbol:
                 "Stochastic": "Crossovers above 80 indicate overbought, below 20 indicate oversold",
                 "Moving Averages": "Crossovers of shorter MA above longer MA are bullish signals"
             }
-            
+
             st.markdown(f"""
                 <div style='background-color: white; padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
                     <h4>Indicator Interpretation</h4>
@@ -659,6 +659,34 @@ if symbol:
                         <p>{sentiment_result['summary']}</p>
                     </div>
                 """, unsafe_allow_html=True)
+
+        with tab5:
+            st.subheader("AI-Powered Stock Analysis")
+            analysis_prompt = f"""
+            Analyze {symbol} stock based on the following metrics:
+            - Current Price: {metrics['Current Price']}
+            - RSI: {prediction['metrics']['technical_levels']['RSI']}
+            - MACD: {prediction['metrics']['technical_levels']['MACD']}
+            - Recent trend and volume patterns
+            - Support and resistance levels
+
+            Provide a detailed analysis and trading recommendation.
+            """
+
+            analysis = analyze_sentiment(analysis_prompt)
+            if isinstance(analysis, str):
+                analysis = eval(analysis)
+
+            st.markdown(f"""
+                <div style='background-color: white; padding: 1.5rem; border-radius: 10px; 
+                         box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+                    <h4>AI Analysis Summary</h4>
+                    <p>{analysis['summary']}</p>
+                    <div style='margin-top: 1rem;'>
+                        <strong>Confidence Score:</strong> {analysis['confidence']:.2f}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
 
         # Additional metrics table
         with st.expander("View All Metrics"):
