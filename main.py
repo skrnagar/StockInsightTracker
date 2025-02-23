@@ -184,18 +184,12 @@ if symbol:
                 df['RSI'] = momentum.rsi(df['Close'], window=14)
 
                 # MACD calculation
-                df['MACD'] = trend.macd_diff(df['Close'], 
-                                           window_slow=26, 
-                                           window_fast=12, 
-                                           window_sign=9)
-                df['MACD_Signal'] = trend.macd_signal(df['Close'],
-                                                    window_slow=26,
-                                                    window_fast=12,
-                                                    window_sign=9)
-                df['MACD_Line'] = trend.macd(df['Close'],
-                                           window_slow=26,
-                                           window_fast=12,
-                                           window_sign=9)
+                macd = trend.MACD(df['Close'], 
+                                   window_slow=26, 
+                                   window_fast=12)
+                df['MACD'] = macd.macd_diff()
+                df['MACD_Signal'] = macd.macd_signal()
+                df['MACD_Line'] = macd.macd()
 
                 # ADX calculation
                 df['ADX'] = trend.adx(df['High'], df['Low'], df['Close'], window=14)
